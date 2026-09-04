@@ -118,9 +118,8 @@ OS: Linux x64 6.12.105+deb13-amd64
 | cSpell                                | 10.2.2                            |
 | Markdownlint-Cli2                     | 0.23.0                            |
 | Markdownlint                          | 0.41.0                            |
-| Commitlint                            | 21.2.1                            |
-| Commitlint config-conventional        | 20.3.0                            |
-| gm-cli                                | 2.2.0                             |
+| Commitlint                            | 21.2.2                            |
+| Commitlint config-conventional        | 21.2.2                            |
 
 ### SUPPORTING TOOLS
 
