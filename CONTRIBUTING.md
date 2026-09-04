@@ -1,30 +1,23 @@
 # CONTRIBUTING
 
 This document provides all the information you would need to contribute to this repository.
-If you have any questions please feel free to contact the repository owner. Details provided in the footer.
+If you have any questions, please feel free to contact the repository owner. Details provided in the footer.
 
 ---
 
 ## TABLE OF CONTENTS
 
-- [GAMEMAKER TEMPLATE PROJECT NAME HERE](#gamemaker-template-project-name-here)
+- [CONTRIBUTING](#contributing)
   - [TABLE OF CONTENTS](#table-of-contents)
-  - [SUMMERY DESCRIPTION](#summery-description)
-  - [WHAT IS THE PURPOSE OF THIS PROJECT ?](#what-is-the-purpose-of-this-project-)
-  - [WHO IS THIS REPOSITORY FOR ?](#who-is-this-repository-for-)
-  - [QUICKSTART](#quickstart)
-  - [API OVERVIEW](#api-overview)
-  - [ENVIRONMENT DEPENDENCY MANIFESTO](#environment-dependency-manifesto)
-    - [GAMEMAKER](#gamemaker)
-    - [IDE](#ide)
-      - [VSC (Visual Studio Codium)](#vsc-visual-studio-codium)
-      - [VSC EXTENSIONS](#vsc-extensions)
-    - [CI TOOLS](#ci-tools)
-    - [SUPPORTING TOOLS](#supporting-tools)
-  - [INSTALLATION](#installation)
-  - [USAGE](#usage)
-  - [SUPPORTING DOCUMENTATION](#supporting-documentation)
-  - [KNOWN ISSUES](#known-issues)
+  - [Branching Workflow](#branching-workflow)
+    - [Permanent branches](#permanent-branches)
+    - [Supporting branches](#supporting-branches)
+    - [Naming conventions](#naming-conventions)
+    - [Workflow](#workflow)
+      - [Starting a feature](#starting-a-feature)
+      - [Starting a release](#starting-a-release)
+      - [Starting a hotfix](#starting-a-hotfix)
+    - [Pull requests](#pull-requests)
   - [CONTACT INFORMATION](#contact-information)
   - [COPYRIGHT](#copyright)
 
@@ -60,7 +53,7 @@ pull requests from supporting branches.
 | Branch | From      | Merges into          | Merge type    | Naming             | Purpose                         |
 |--------|-----------|----------------------|---------------|--------------------|---------------------------------|
 | Feature| `develop` | `develop`            | Squash merge  | `feature/<name>`   | New or in-progress functionality|
-| Release| `develop` | `master`, `develop`  | Merge commit  | `release/<version>`| Stabilize and prepare a release |
+| Release| `develop` | `master`, `develop`  | Merge commit  | `release/<version>`| Stabilise and prepare a release |
 | Hotfix | `master`  | `master`, `develop`  | Merge commit  | `hotfix/<version>` | Urgent production fixes         |
 
 Squashing a feature branch collapses all of its commits into a single new
@@ -82,7 +75,7 @@ gitGraph
    commit id: "core (squashed)"
    branch release/v1.0.0
    checkout release/v1.0.0
-   commit id: "stabilize"
+   commit id: "stabilise"
    checkout master
    merge release/v1.0.0 tag: "v1.0.0"
    checkout develop
@@ -133,7 +126,7 @@ When the release branch is stable:
 1. Open a pull request from `release/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
 2. Merge `release/<version>` back into `develop` so the fixes made during
-   stabilization aren't lost.
+   stabilisation aren't lost.
 3. Delete the release branch.
 
 #### Starting a hotfix
@@ -164,7 +157,7 @@ When the fix is ready:
 - `feature/*` → `develop` pull requests must be **squash merged**.
 - `release/*` and `hotfix/*` pull requests must use a regular **merge
   commit** (not squash, not rebase) — this keeps `master`'s history and
-  tags accurate and preserves the full set of stabilization commits when
+  tags accurate and preserves the full set of stabilisation commits when
   merging back into `develop`.
 - Keep feature branches short-lived and up to date with `develop` to avoid
   large, conflict-prone merges.
