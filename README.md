@@ -1,7 +1,6 @@
 # GAMEMAKER TEMPLATE PROJECT NAME HERE
 
 <!-- markdownlint-disable MD013 -->
-[![Commitlint](https://github.com/NinjaMonkeyGames/project-name-here/actions/workflows/ci.yaml/badge.svg)](https://github.com/NinjaMonkeyGames/project-name-here/actions/workflows/ci.yaml)
 [![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 ![Signed Commits](https://img.shields.io/badge/commits-signed-blue.svg)
 ![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)
