@@ -69,6 +69,7 @@ commit on `develop`. That commit has no merge-parent link back to
 `develop`'s history — only the squashed result does.
 
 ```mermaid
+%%{init: { 'gitGraph': { 'mainBranchName': 'master' }}}%%
 gitGraph
    commit id: "init"
    branch develop
