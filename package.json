@@ -1,0 +1,29 @@
+{
+  "name": "gamemaker-project-template",
+  "version": "0.1.0",
+  "description": "gamemaker-project-ci-template",
+  "keywords": [
+    "template",
+    "gamemaker",
+    "ci",
+    "workflow"
+  ],
+  "homepage": "https://github.com/NinjaMonkeyGames/gamemaker-project-template#readme",
+  "bugs": {
+    "url": "https://github.com/NinjaMonkeyGames/gamemaker-project-template/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NinjaMonkeyGames/gamemaker-project-template.git"
+  },
+  "license": "GPL-3.0",
+  "author": "NinjaMonkeyGames",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "cspell": "^10.2.2"
+  }
+}

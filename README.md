@@ -113,12 +113,10 @@ OS: Linux x64 6.12.105+deb13-amd64
 
 ### CI TOOLS
 
-Tools versions used by CI and by extension the Dockerfile.
-
 | Tool                                  | Version                           |
 |---------------------------------------|-----------------------------------|
 | npm                                   | 11.18.0                           |
-| cSpell                                | 11.6.2                            |
+| cSpell                                | 10.2.2                            |
 | Markdownlint-Cli2                     | 0.23.0                            |
 | Markdownlint                          | 0.41.0                            |
 | Commitlint                            | 21.2.1                            |
@@ -175,3 +173,4 @@ GitHub.
 ## COPYRIGHT
 
 *NinjaMonkeyGames™ Copyright © 2026 All rights reserved.*
+
