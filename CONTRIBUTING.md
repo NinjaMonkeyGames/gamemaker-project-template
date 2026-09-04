@@ -172,7 +172,7 @@ If you have any problems with the repository or have any suggestions please cont
 
 You may also contact us via our [website](https://ninjamonkeygames.com).
 
-Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/grid-utility-professional/issues) on
+Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/project-name-here/issues) on
 GitHub.
 
 ---
