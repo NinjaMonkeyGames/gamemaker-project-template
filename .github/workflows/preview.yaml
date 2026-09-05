@@ -59,3 +59,33 @@ jobs:
       # what actually lands on develop.
       - name: Lint last commit
         run: npx commitlint --config ./.config/commitlint.config.mjs --last
+
+  markdownlint:
+    runs-on: ubuntu-latest
+    # See the note on commitlint's environment: preview above - same
+    # reasoning applies to every job in this file.
+    environment: preview
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint:
+      # markdownlint-cli2 needs to actually be a devDependency in
+      # package.json for this to use a pinned version rather than npx
+      # fetching whatever's latest on the registry at run time.
+      - name: Install markdownlint
+        run: npm ci
+
+      - name: Print markdownlint version
+        run: npx markdownlint-cli2 --version
+
+      # config is set explicitly since .markdownlint-cli2.jsonc lives in
+      # .config/, not the repo root where markdownlint-cli2 looks by
+      # default.
+      - name: Lint markdown files
+        run: npx markdownlint-cli2 --config ./.config/.markdownlint-cli2.jsonc "**/*.md"
