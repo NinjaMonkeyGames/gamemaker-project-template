@@ -80,6 +80,14 @@ gitGraph
    merge release/v1.0.0 tag: "v1.0.0"
    checkout develop
    merge release/v1.0.0
+   checkout master
+   branch hotfix/v1.0.1
+   checkout hotfix/v1.0.1
+   commit id: "fix"
+   checkout master
+   merge hotfix/v1.0.1 tag: "v1.0.1"
+   checkout develop
+   merge hotfix/v1.0.1
 ```
 
 ---
@@ -172,7 +180,7 @@ If you have any problems with the repository or have any suggestions please cont
 
 You may also contact us via our [website](https://ninjamonkeygames.com).
 
-Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/project-name-here/issues) on
+Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/grid-utility-professional/issues) on
 GitHub.
 
 ---

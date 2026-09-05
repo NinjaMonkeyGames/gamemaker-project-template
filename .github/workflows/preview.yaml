@@ -1,0 +1,61 @@
+# Reusable workflow: the set of checks every feature/* branch must pass
+# (the "preview" gate — see CONTRIBUTING.md / detect-environment.yaml).
+# Called from deploy.yaml when the resolved environment is "preview".
+#
+# Add more jobs here as the preview gate grows (tests, build, lint, etc).
+
+name: Preview Checks
+
+on:
+  workflow_call:
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    # Declaring this environment is what makes GitHub record an actual
+    # "preview" Deployment for this commit - required for a "Require
+    # deployments to succeed: preview" branch protection rule to have
+    # anything to check against. Without this, no job anywhere ever
+    # creates a "preview" deployment (deploy.yaml's deploy job explicitly
+    # skips itself when the environment is "preview"), so that rule would
+    # fail on every PR, always, regardless of whether checks pass.
+    environment: preview
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json so commitlint uses the repo's own
+      # pinned commitlint + config-conventional versions, matching your
+      # local install and pr-title-lint.yaml.
+      - name: Install commitlint
+        run: npm ci
+
+      - name: Print commitlint version
+        run: npx commitlint --version
+
+      # Lints only the most recent commit (HEAD) against
+      # .config/commitlint.config.mjs (Conventional Commits). --last means
+      # each push is checked commit-by-commit as it lands, rather than
+      # re-checking the whole branch's history against develop every time.
+      #
+      # This previously used wagoid/commitlint-github-action, which
+      # reported "Lint free!" regardless of commit content. Root cause: the
+      # config path was wrong (pointed at repo root, but the file actually
+      # lives in .config/), so the action silently fell back to bare
+      # @commitlint/config-conventional defaults - which a plain "feat: add
+      # x" satisfies with no scope/body/signoff required. Using the
+      # commitlint CLI directly surfaces a loud, explicit error on a wrong
+      # config path instead of silently discarding your custom rules, and
+      # matches the working pattern already used in pr-title-lint.yaml.
+      #
+      # Note: this checks the branch's raw commits, not the eventual
+      # squash-merge commit message - that's linted separately (see
+      # pr-title-lint.yaml) against the PR's title + body, since that's
+      # what actually lands on develop.
+      - name: Lint last commit
+        run: npx commitlint --config ./.config/commitlint.config.mjs --last
