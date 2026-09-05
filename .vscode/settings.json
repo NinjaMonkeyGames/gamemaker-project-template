@@ -25,7 +25,7 @@
 
   // Set commitlint config path
 
-  "commitlint.config.file": ".config/commitlint.config.js",
+  "commitlint.config.file": ".config/commitlint.config.mjs",
 
   "editor.formatOnSave": true, // Automatically format files when saving
   "editor.formatOnType": true, // Automatically format code as you type
