@@ -3,11 +3,40 @@
 # Called from deploy.yaml when the resolved environment is "preview".
 #
 # Add more jobs here as the preview gate grows (tests, build, lint, etc).
+#
+# merge_group support: also triggers directly (independent of deploy.yaml)
+# when develop's Merge Queue processes a PR. Note this will report under
+# a DIFFERENT check name than the "preview / commitlint" one produced via
+# deploy.yaml's workflow_call - that naming comes specifically from being
+# called as deploy.yaml's "preview" job, which a direct merge_group
+# trigger bypasses. Rather than guess at the exact resulting name, verify
+# it once triggered live and add it to develop's required-checks list as
+# its own additional entry - it doesn't need to match the existing name.
+#
+# Like pr-title-lint.yaml, this deliberately does NOT try to replicate
+# any branch-specific logic from the merge_group event - these checks
+# aren't integration-sensitive (a commit message or markdown file's
+# validity doesn't change based on what else is in the queue), so they
+# were already conclusively answered by the push-triggered run. The
+# merge_group run is a documented no-op reporting success, not a guess
+# about the event's schema.
+#
+# CONFIRMED LIVE: every real step below is guarded with
+# `if: github.event_name != 'merge_group'`, not
+# `== 'workflow_call'`. github.event_name inside a workflow invoked via
+# workflow_call reports the ORIGINAL triggering event of the top-level
+# caller (e.g. "push", since that's what triggers deploy.yaml) - not
+# "workflow_call" itself. The first version of this file used the wrong
+# comparison and every step silently skipped on real pushes, caught only
+# by actually testing a push to a feature branch and seeing every check
+# come back skipped.
 
 name: Preview Checks
 
 on:
   workflow_call:
+  merge_group:
+    types: [checks_requested]
 
 jobs:
   commitlint:
@@ -19,13 +48,25 @@ jobs:
     # creates a "preview" deployment (deploy.yaml's deploy job explicitly
     # skips itself when the environment is "preview"), so that rule would
     # fail on every PR, always, regardless of whether checks pass.
+    #
+    # NOTE: as of writing, "Require deployments to succeed: preview" was
+    # tried and removed - it breaks GitHub's auto-merge feature outright.
+    # See CONTRIBUTING.md. environment: preview is left in place since it
+    # doesn't hurt anything and would matter again if that rule were ever
+    # reintroduced some other way.
     environment: preview
     steps:
+      - name: No-op for merge_group (see file header comment)
+        if: github.event_name == 'merge_group'
+        run: echo "Not integration-sensitive; already verified by the push-triggered run. Nothing to re-check here."
+
       - uses: actions/checkout@v7
+        if: github.event_name != 'merge_group'
         with:
           fetch-depth: 2
 
       - uses: actions/setup-node@v7
+        if: github.event_name != 'merge_group'
         with:
           node-version: 24
 
@@ -33,9 +74,11 @@ jobs:
       # pinned commitlint + config-conventional versions, matching your
       # local install and pr-title-lint.yaml.
       - name: Install commitlint
+        if: github.event_name != 'merge_group'
         run: npm ci
 
       - name: Print commitlint version
+        if: github.event_name != 'merge_group'
         run: npx commitlint --version
 
       # Lints only the most recent commit (HEAD) against
@@ -58,6 +101,7 @@ jobs:
       # pr-title-lint.yaml) against the PR's title + body, since that's
       # what actually lands on develop.
       - name: Lint last commit
+        if: github.event_name != 'merge_group'
         run: npx commitlint --config ./.config/commitlint.config.mjs --last
 
   markdownlint:
@@ -66,11 +110,17 @@ jobs:
     # reasoning applies to every job in this file.
     environment: preview
     steps:
+      - name: No-op for merge_group (see file header comment)
+        if: github.event_name == 'merge_group'
+        run: echo "Not integration-sensitive; already verified by the push-triggered run. Nothing to re-check here."
+
       - uses: actions/checkout@v7
+        if: github.event_name != 'merge_group'
         with:
           fetch-depth: 1
 
       - uses: actions/setup-node@v7
+        if: github.event_name != 'merge_group'
         with:
           node-version: 24
 
@@ -79,13 +129,102 @@ jobs:
       # package.json for this to use a pinned version rather than npx
       # fetching whatever's latest on the registry at run time.
       - name: Install markdownlint
+        if: github.event_name != 'merge_group'
         run: npm ci
 
       - name: Print markdownlint version
+        if: github.event_name != 'merge_group'
         run: npx markdownlint-cli2 --version
 
       # config is set explicitly since .markdownlint-cli2.jsonc lives in
       # .config/, not the repo root where markdownlint-cli2 looks by
       # default.
       - name: Lint markdown files
+        if: github.event_name != 'merge_group'
         run: npx markdownlint-cli2 --config ./.config/.markdownlint-cli2.jsonc "**/*.md"
+
+  gm-cli-tests:
+    # Adapted from a working example from another of your projects
+    # (grid-utility-professional), not built from scratch - the container
+    # image, Xvfb setup, and gm-fail.sh evaluation step are all things
+    # you'd already proven work, not guesses.
+    #
+    # The project directory is discovered at runtime (find the .yyp),
+    # rather than hardcoded - as a template, this repo's own project
+    # folder name won't match whatever a project built from this template
+    # is actually called, and a hardcoded path would need manual editing
+    # every time this workflow is copied into a new project.
+    #
+    # gm-fail.sh lives in .config/, not repo root as the original example
+    # (from grid-utility-professional, a real project of yours) had it.
+    #
+    # Worth a deliberate decision, not an oversight: @gamemaker/gm-cli is
+    # invoked as @latest here, unlike commitlint/markdownlint-cli2 which
+    # are pinned via package-lock.json. That's inconsistent with the
+    # "always pin, avoid npx-fetches-whatever's-current drift" reasoning
+    # used everywhere else in this file - kept as-is since it's your
+    # proven working setup, but flagging it in case you want it pinned
+    # the same way once a devDependency version is settled on.
+    runs-on: ubuntu-latest
+    environment: preview
+    # --privileged allows unshare, chroot, and mount operations gm-cli
+    # needs inside the container.
+    container:
+      image: monkeyknuckles/gm-cli:latest
+      options: --privileged
+    steps:
+      - name: No-op for merge_group (see file header comment)
+        if: github.event_name == 'merge_group'
+        run: echo "Not integration-sensitive; already verified by the push-triggered run. Nothing to re-check here."
+
+      - name: Checkout repository
+        if: github.event_name != 'merge_group'
+        uses: actions/checkout@v7
+
+      - name: Install project dependencies
+        if: github.event_name != 'merge_group'
+        run: npm install
+
+      # Finds the GameMaker project by locating its .yyp file, rather
+      # than assuming a fixed folder name. Excludes node_modules and .git
+      # so a stray same-named file there can't be mistaken for the real
+      # project. Fails loudly if none (or ambiguity) is found, rather
+      # than silently falling back to the repo root.
+      - name: Discover project directory
+        id: discover
+        if: github.event_name != 'merge_group'
+        run: |
+          YYP_PATH=$(find . -maxdepth 4 -iname '*.yyp' -not -path '*/node_modules/*' -not -path '*/.git/*' | head -n 1)
+          if [ -z "$YYP_PATH" ]; then
+            echo "No .yyp found with maxdepth 4. Diagnostics:" >&2
+            echo "--- pwd ---" >&2
+            pwd >&2
+            echo "--- ls -la . ---" >&2
+            ls -la . >&2
+            echo "--- find . -iname '*.yyp' (no depth limit, no exclusions) ---" >&2
+            find . -iname '*.yyp' >&2
+            exit 1
+          fi
+          echo "Found project file: $YYP_PATH"
+          echo "dir=$(dirname "$YYP_PATH")" >> "$GITHUB_OUTPUT"
+
+      # Runs headless under a virtual X11 framebuffer, since there's no
+      # real display in CI. Output is both shown live and saved to
+      # test_output.log for the next step to evaluate. `|| true` is
+      # deliberate: gm-cli's own exit code isn't what determines
+      # pass/fail here - gm-fail.sh inspecting the captured output is.
+      - name: Execute tests under virtual framebuffer
+        if: github.event_name != 'merge_group'
+        working-directory: ${{ steps.discover.outputs.dir }}
+        env:
+          DISPLAY: ":99"
+        run: |
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          sleep 2
+          npx @gamemaker/gm-cli@latest run --verbose 2>&1 | tee test_output.log || true
+
+      - name: Evaluate test output with gm-fail.sh
+        if: github.event_name != 'merge_group'
+        run: |
+          chmod +x ./.config/gm-fail.sh
+          ./.config/gm-fail.sh "${{ steps.discover.outputs.dir }}/test_output.log"
