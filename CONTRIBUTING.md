@@ -18,6 +18,9 @@ If you have any questions, please feel free to contact the repository owner. Det
       - [Starting a release](#starting-a-release)
       - [Starting a hotfix](#starting-a-hotfix)
     - [Pull requests](#pull-requests)
+    - [Closing issues](#closing-issues)
+  - [Commit message requirements](#commit-message-requirements)
+  - [Continuous integration checks](#continuous-integration-checks)
   - [CONTACT INFORMATION](#contact-information)
   - [COPYRIGHT](#copyright)
 
@@ -171,6 +174,74 @@ When the fix is ready:
   merging back into `develop`.
 - Keep feature branches short-lived and up to date with `develop` to avoid
   large, conflict-prone merges.
+
+---
+
+### Closing issues
+
+⚠️ **Caution:** merging into `develop` does **not** auto-close referenced issues, even
+with GitHub's usual `Closes #123`-style keywords. GitHub only evaluates
+those keywords when a pull request merges into the repository's
+**default branch** (`master`) — not `develop`.
+
+Issues are therefore **closed manually** when merging a `feature/*` pull
+request, rather than automated. This is a deliberate choice, not a
+limitation being worked around: closing issues by hand at merge time
+means actually reviewing what a merge resolves, rather than trusting a
+keyword match.
+
+Reference the issues a pull request addresses in its description (e.g.
+`References #123`) so there's a checklist to close against at merge
+time, even though this reference will not trigger an automatic close.
+
+---
+
+## Commit message requirements
+
+All commit messages, and `feature/*` → `develop` pull request titles and
+descriptions (squashing turns the PR title + body into the actual commit
+message — see [Supporting branches](#supporting-branches)), must follow
+[Conventional Commits](https://www.conventionalcommits.org/) as
+configured in `.config/commitlint.config.mjs`, with a custom plugin at
+`.config/signed-off-by-regex.js`.
+
+Beyond the standard Conventional Commits format, this project requires:
+
+- A **scope** from a fixed list: `core`, `api`, `ui`, `auth`, `db`, `deps`,
+  `tests`, `config`, `security`, `rebase`.
+- A **body** of at least 10 characters, in sentence case.
+- A **`Signed-off-by: Name <email@example.com>`** line — a
+  [Developer Certificate of Origin](https://developercertificate.org/)-style
+  sign-off, not a cryptographically signed commit.
+
+Example:
+
+```text
+feat(core): add player movement
+
+Adds basic WASD movement to the player controller.
+
+Signed-off-by: Jane Doe <jane@example.com>
+```
+
+---
+
+## Continuous integration checks
+
+Pushing to a `feature/*` branch, and opening a `feature/*` → `develop`
+pull request, each trigger automated checks:
+
+| Check                    | Runs on                               | What it checks                                    |
+|--------------------------|---------------------------------------|---------------------------------------------------|
+| `preview / commitlint`   | Push to `feature/*`                   | Latest commit message; see [requirements][cm]     |
+| `preview / markdownlint` | Push to `feature/*`                   | Every Markdown file in the repository             |
+| `lint-pr-message`        | `feature/*` → `develop` pull requests | PR title and body become the squash commit        |
+
+[cm]: #commit-message-requirements
+
+`preview / commitlint` and `preview / markdownlint` also register a
+`preview` GitHub Deployment for the commit, so a "Require deployments to
+succeed: preview" branch protection rule has something to check against.
 
 ---
 
