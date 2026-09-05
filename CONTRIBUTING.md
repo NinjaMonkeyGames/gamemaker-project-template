@@ -106,7 +106,7 @@ Versions follow [Semantic Versioning](https://semver.org/) (`vMAJOR.MINOR.PATCH`
 
 #### Starting a feature
 
-```
+```text
 git checkout develop
 git pull origin develop
 git checkout -b feature/<short-description>
@@ -121,7 +121,7 @@ Delete the feature branch once merged.
 
 When `develop` has enough features for a release:
 
-```
+```text
 git checkout develop
 git pull origin develop
 git checkout -b release/<version>
@@ -131,6 +131,7 @@ Only bug fixes, documentation, and release-related chores (version bumps,
 changelog) belong on a release branch — no new features.
 
 When the release branch is stable:
+
 1. Open a pull request from `release/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
 2. Merge `release/<version>` back into `develop` so the fixes made during
@@ -141,13 +142,14 @@ When the release branch is stable:
 
 For an urgent fix to production:
 
-```
+```text
 git checkout master
 git pull origin master
 git checkout -b hotfix/<version>
 ```
 
 When the fix is ready:
+
 1. Open a pull request from `hotfix/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
 2. Merge `hotfix/<version>` back into `develop` (or into the active release
