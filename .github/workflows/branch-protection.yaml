@@ -1,0 +1,77 @@
+# Enforces the source-branch restrictions documented in CONTRIBUTING.md's
+# "Pull requests" section (e.g. "A pull request into master must come from
+# a release/* or hotfix/* branch") - previously policy on paper only, not
+# something CI or GitHub's own branch protection actually blocked. GitHub
+# has no native "restrict PR source branch by pattern" rule, so this is a
+# custom required status check, same pattern as pr-title-lint.yaml.
+#
+# Allowed (base <- head) pairings, from the Supporting branches table:
+#   master  <- release/*, hotfix/*
+#   develop <- feature/*, master (the sync-master-to-develop.yaml PR - see
+#              that file)
+# Anything else targeting master or develop is rejected.
+#
+# release/* and hotfix/* are deliberately NOT allowed into develop
+# directly, even though they branch from/merge into develop's history
+# indirectly: sync-master-to-develop.yaml already carries every master
+# change into develop automatically, so a direct release/hotfix -> develop
+# PR would be a second, redundant path to the same result - and a real
+# risk of the same commits landing in develop twice via two different
+# routes if both get used.
+#
+# merge_group support: same reasoning as pr-title-lint.yaml - the
+# merge_group event doesn't reliably expose the original PR's source
+# branch, and this isn't integration-sensitive (which branches are allowed
+# to merge where doesn't change based on what else is in the queue), so it
+# was already conclusively answered by the pull_request-triggered run. The
+# merge_group run is a deliberate, documented no-op.
+
+name: Branch Policy Check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches:
+      - master
+      - develop
+  merge_group:
+    types: [checks_requested]
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op for merge_group (see file header comment)
+        if: github.event_name == 'merge_group'
+        run: echo "Not integration-sensitive; already verified when this PR was opened. Nothing to re-check here."
+
+      - name: Enforce allowed source branch for the target
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+        run: |
+          case "$BASE" in
+            master)
+              case "$HEAD" in
+                release/*|hotfix/*)
+                  echo "OK: '$HEAD' -> '$BASE'"
+                  ;;
+                *)
+                  echo "A pull request into master must come from a release/* or hotfix/* branch, not '$HEAD'. See CONTRIBUTING.md." >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+            develop)
+              case "$HEAD" in
+                feature/*|master)
+                  echo "OK: '$HEAD' -> '$BASE'"
+                  ;;
+                *)
+                  echo "A pull request into develop must come from feature/* or master (the automated sync PR), not '$HEAD'. See CONTRIBUTING.md." >&2
+                  exit 1
+                  ;;
+              esac
+              ;;
+          esac

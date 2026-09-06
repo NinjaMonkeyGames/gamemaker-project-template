@@ -21,6 +21,7 @@ If you have any questions, please feel free to contact the repository owner. Det
     - [Closing issues](#closing-issues)
   - [Commit message requirements](#commit-message-requirements)
   - [Continuous integration checks](#continuous-integration-checks)
+  - [Code comment style](#code-comment-style)
   - [CONTACT INFORMATION](#contact-information)
   - [COPYRIGHT](#copyright)
 
@@ -137,8 +138,10 @@ When the release branch is stable:
 
 1. Open a pull request from `release/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
-2. Merge `release/<version>` back into `develop` so the fixes made during
-   stabilisation aren't lost.
+2. `sync-master-to-develop.yaml` automatically opens a pull request
+   bringing that merge into `develop` — review and merge it (a regular
+   merge commit, not squash) so the fixes made during stabilisation
+   aren't lost.
 3. Delete the release branch.
 
 #### Starting a hotfix
@@ -155,8 +158,12 @@ When the fix is ready:
 
 1. Open a pull request from `hotfix/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
-2. Merge `hotfix/<version>` back into `develop` (or into the active release
-   branch, if one exists) so the fix is included in future releases.
+2. `sync-master-to-develop.yaml` automatically opens a pull request
+   bringing that merge into `develop` — review and merge it (a regular
+   merge commit, not squash) so the fix is included in future releases.
+   ⚠️ **Caution:** this automation only syncs into `develop`. If a
+   `release/*` branch is active at the same time, merge the fix into that
+   branch by hand too — the sync does not cover it.
 3. Delete the hotfix branch.
 
 ---
@@ -166,7 +173,8 @@ When the fix is ready:
 - All merges into `master` or `develop` happen via pull request — no direct
   pushes.
 - A pull request into `master` must come from a `release/*` or `hotfix/*`
-  branch.
+  branch. Enforced by the `Branch Policy Check` required status check —
+  see [Continuous integration checks](#continuous-integration-checks).
 - `feature/*` → `develop` pull requests must be **squash merged**.
 - `release/*` and `hotfix/*` pull requests must use a regular **merge
   commit** (not squash, not rebase) — this keeps `master`'s history and
@@ -209,10 +217,19 @@ Beyond the standard Conventional Commits format, this project requires:
 
 - A **scope** from a fixed list: `core`, `api`, `ui`, `auth`, `db`, `deps`,
   `tests`, `config`, `security`, `rebase`.
+- A **subject in the imperative mood** — "add", "update", "fix", not
+  "added", "updated", "fixed". Read it as completing "This commit will
+  ...".
 - A **body** of at least 10 characters, in sentence case.
 - A **`Signed-off-by: Name <email@example.com>`** line — a
   [Developer Certificate of Origin](https://developercertificate.org/)-style
   sign-off, not a cryptographically signed commit.
+
+⚠️ **Not yet enforced by commitlint:** the imperative-mood rule above is
+currently a convention only — `.config/commitlint.config.mjs` has no rule
+checking it (commitlint has no built-in imperative-mood check), so
+"added"/"updated" subjects will still pass CI today. See the TODO in that
+file for tightening this.
 
 Example:
 
@@ -228,20 +245,43 @@ Signed-off-by: Jane Doe <jane@example.com>
 
 ## Continuous integration checks
 
-Pushing to a `feature/*` branch, and opening a `feature/*` → `develop`
-pull request, each trigger automated checks:
+Pushing to a `feature/*` branch, and opening a pull request into `develop`
+or `master`, each trigger automated checks:
 
-| Check                    | Runs on                               | What it checks                                    |
-|--------------------------|---------------------------------------|---------------------------------------------------|
-| `preview / commitlint`   | Push to `feature/*`                   | Latest commit message; see [requirements][cm]     |
-| `preview / markdownlint` | Push to `feature/*`                   | Every Markdown file in the repository             |
-| `lint-pr-message`        | `feature/*` → `develop` pull requests | PR title and body become the squash commit        |
+| Check                    | Runs on                                  | What it checks                                |
+|--------------------------|------------------------------------------|-----------------------------------------------|
+| `preview / commitlint`   | Push to `feature/*`                      | Latest commit message; see [requirements][cm] |
+| `preview / markdownlint` | Push to `feature/*`                      | Every Markdown file in the repository         |
+| `lint-pr-message`        | `feature/*` → `develop` pull requests    | PR title and body become the squash commit    |
+| `check-source-branch`    | Pull requests into `master` or `develop` | PR source branch matches the allowed pairings |
 
 [cm]: #commit-message-requirements
 
 `preview / commitlint` and `preview / markdownlint` also register a
+`preview` GitHub Deployment for the commit.
+
+🚨 **Warning:** do **not** add a "Require deployments to succeed: preview"
+branch protection rule on `develop` — this was tried and it breaks
+GitHub's auto-merge feature outright ("Failed enabling auto-merge for
+pull request"), even when every check is genuinely passing. It's also
+redundant: the jobs that create the `preview` deployment are the same
+jobs already enforced as required status checks above, so the rule adds
+no protection that isn't already there. Require the status checks
+themselves, not the deployment.
+
+`preview / commitlint` and `preview / markdownlint` also register a
 `preview` GitHub Deployment for the commit, so a "Require deployments to
 succeed: preview" branch protection rule has something to check against.
+
+---
+
+## Code comment style
+
+In source-code comments (`.mjs`, `.js`, `.sh`, `.yaml`, etc.), prefer
+backticks (`` ` ``) over single quotes (`'`) when quoting an identifier,
+value, file path, or branch name — e.g. `` `feature/*` `` rather than
+`'feature/*'`. This matches how this document quotes identifiers and
+keeps quoting consistent between prose and code.
 
 ---
 
