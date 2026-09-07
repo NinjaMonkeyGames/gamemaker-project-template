@@ -87,7 +87,7 @@ jobs:
           # Not in the whitelist above - exit 1 with a reason specific
           # enough to point at CONTRIBUTING.md's actual rule, falling back
           # to a generic message for a base this file doesn't otherwise
-          # recognise (defense in depth: the trigger's `branches:` filter
+          # recognise (defence in depth: the trigger's `branches:` filter
           # is what actually keeps BASE to these four today).
           case "$BASE" in
             master)

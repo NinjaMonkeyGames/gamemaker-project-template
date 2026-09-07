@@ -138,10 +138,10 @@ When the release branch is stable:
 
 1. Open a pull request from `release/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
-2. `sync-master-to-develop.yaml` automatically opens a pull request
-   bringing that merge into `develop` — review and merge it (a regular
-   merge commit, not squash) so the fixes made during stabilisation
-   aren't lost.
+2. `sync-master-to-develop.yaml` automatically opens **and merges** a pull
+   request bringing that merge into `develop` (a regular merge commit,
+   not squash) — no manual step needed, so the fixes made during
+   stabilisation aren't lost.
 3. Delete the release branch.
 
 #### Starting a hotfix
@@ -158,10 +158,10 @@ When the fix is ready:
 
 1. Open a pull request from `hotfix/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
-2. `sync-master-to-develop.yaml` automatically opens a pull request
-   bringing that merge into `develop` — review and merge it (a regular
-   merge commit, not squash) so the fix is included in future releases.
-   ⚠️ **Caution:** this automation only syncs into `develop`. If a
+2. `sync-master-to-develop.yaml` automatically opens **and merges** a pull
+   request bringing that merge into `develop` (a regular merge commit,
+   not squash) — no manual step needed, so the fix is included in future
+   releases. ⚠️ **Caution:** this automation only syncs into `develop`. If a
    `release/*` branch is active at the same time, merge the fix into that
    branch by hand too — the sync does not cover it.
 3. Delete the hotfix branch.
@@ -180,6 +180,14 @@ When the fix is ready:
   commit** (not squash, not rebase) — this keeps `master`'s history and
   tags accurate and preserves the full set of stabilisation commits when
   merging back into `develop`.
+- Pull requests **into** `release/*` or `hotfix/*` are rejected outright
+  by `check-source-branch` — these branches only ever merge *out* (to
+  `master`). Push fixes to them directly instead; see
+  [Starting a release](#starting-a-release) /
+  [Starting a hotfix](#starting-a-hotfix).
+- Force-pushing is blocked on every branch **except** `feature/*` and
+  `hotfix/*`, which stay open for rebasing or amending your own
+  in-progress work.
 - Keep feature branches short-lived and up to date with `develop` to avoid
   large, conflict-prone merges.
 
@@ -230,6 +238,16 @@ currently a convention only — `.config/commitlint.config.mjs` has no rule
 checking it (commitlint has no built-in imperative-mood check), so
 "added"/"updated" subjects will still pass CI today. See the TODO in that
 file for tightening this.
+
+🔒 **Separately enforced by branch protection, not commitlint:** every
+commit, on every branch, must be **cryptographically signed** (GPG or
+SSH) — this is a repository rule, checked at push time, not a commitlint
+rule. It's a different requirement from the `Signed-off-by` line above:
+that's a DCO-style text trailer commitlint checks the content of; this is
+a real cryptographic signature Git itself verifies. Configure commit
+signing locally (see
+[GitHub's guide](https://docs.github.com/en/authentication/managing-commit-signature-verification))
+or pushes will be rejected outright, regardless of message content.
 
 Example:
 
