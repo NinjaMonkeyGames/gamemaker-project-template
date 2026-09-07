@@ -1,0 +1,57 @@
+# Whenever master changes for any reason (a release/* merge, a hotfix/*
+# merge, release-please's version-bump PR, or anything else), this opens
+# a pull request bringing those changes into develop - so develop can't
+# silently drift behind what's actually shipped, and nobody has to
+# remember a manual "merge back into develop" step.
+#
+# This only ever opens the PR - it never merges it. A human still
+# reviews and merges, same as everywhere else in this repo. Once a sync
+# PR is open, there's nothing to "update" on later pushes to master: an
+# open PR tracks the live diff between its base and head branches
+# automatically (that's just how GitHub PRs work), so the existing PR
+# already reflects new commits without this workflow touching it again.
+#
+# Merge this PR with a regular merge commit, not squash - same reasoning
+# as release/* and hotfix/* merging back into develop (see
+# CONTRIBUTING.md): this preserves history rather than collapsing it.
+
+name: Sync Master to Develop
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Open sync PR if one isn't already open
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { data: existing } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              base: 'develop',
+              head: `${context.repo.owner}:master`,
+            });
+
+            if (existing.length > 0) {
+              core.info(`Sync PR already open: #${existing[0].number}`);
+              return;
+            }
+
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'chore: sync master into develop',
+              head: 'master',
+              base: 'develop',
+              body: 'Automatically opened because master was updated. Merge with a regular merge commit (not squash) to bring these changes into develop.',
+            });
+
+            core.info(`Opened sync PR #${pr.data.number}`);
