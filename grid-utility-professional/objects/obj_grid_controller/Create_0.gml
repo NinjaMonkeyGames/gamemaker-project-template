@@ -31,8 +31,8 @@ global.grid_vformat = undefined; // Shared vertex format for all grid instances
 
 if (variable_global_exists("controller") && instance_exists(global.controller))
 {
-	show_debug_message("A singleton pattern has been implimented for this object. Please don't call me again!");
-    instance_destroy();	// Cleanup instance from memmory.
+	show_debug_message("A singleton pattern has been implemented for this object. Please don't call me again!");
+    instance_destroy();	// Cleanup instance from memory.
     exit;				// Stop the rest of Create from running
 }
 
@@ -341,7 +341,7 @@ constructor
 		
 		// Build grid cells.
 		
-		cell_data = array_create(0); // Initialise as array up fron to avoid feather warning.
+		cell_data = array_create(0); // Initialise as array up front to avoid feather warning.
 		
 		for (var _row = 0; _row < row_qty; ++_row) 
 		{

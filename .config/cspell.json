@@ -2,25 +2,50 @@
     "version": "0.2",
     "language": "en-GB",
     "ignorePaths": [
-        ".config/cspell.json"
+        ".config/cspell.json",
+        "**/*.yy",
+        "**Build**",
+        "**options**",
+        "**sprites**",
+        "**AppDir"
     ],
     "dictionaryDefinitions": [],
     "dictionaries": [],
     "words": [
+        "animationcurve",
+        "audiogroup",
+        "autocrop",
         "commitlint",
         "davidanson",
         "esac",
         "gamemaker",
         "Gitflow",
+        "globalvar",
         "globby",
+        "handpoint",
         "joshbolduc",
+        "linelist",
         "monkeyknuckles",
+        "particlesystem",
+        "tilemap",
+        "vbuff",
+        "vformat",
         "WASD",
         "yzhang"
     ],
     "ignoreWords": [],
     "import": [],
     "overrides": [
+        {
+            "filename": "**/*.yyp, **/*.yy",
+            "words": [
+                "autocrop",
+                "audiogroup",
+                "bbox",
+                "xorigin",
+                "animationcurve"
+            ]
+        },
         {
             "filename": "**/preview.yaml",
             "words": [
