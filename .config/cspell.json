@@ -1,26 +1,32 @@
 {
     "version": "0.2",
     "language": "en-GB",
-    "ignorePaths": [],
+    "ignorePaths": [
+        ".config/cspell.json"
+    ],
     "dictionaryDefinitions": [],
     "dictionaries": [],
     "words": [
         "commitlint",
         "davidanson",
-        "endgroup",
         "esac",
-        "GAMEMAKER",
+        "gamemaker",
         "Gitflow",
+        "globby",
         "joshbolduc",
-        "linted",
-        "Mallett",
-        "monkeyknuckes",
         "monkeyknuckles",
-        "ninjamonkeygames",
-        "wagoid",
         "WASD",
         "yzhang"
     ],
     "ignoreWords": [],
-    "import": []
+    "import": [],
+    "overrides": [
+        {
+            "filename": "**/preview.yaml",
+            "words": [
+                "endgroup",
+                "wagoid"
+            ]
+        }
+    ]
 }

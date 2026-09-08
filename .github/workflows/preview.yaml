@@ -163,6 +163,51 @@ jobs:
         if: github.event_name != 'merge_group'
         run: npx markdownlint-cli2 --config ./.config/.markdownlint-cli2.jsonc "**/*.md"
 
+  cspell:
+    # See the note on commitlint's environment: preview above - same
+    # reasoning applies to every job in this file.
+    environment: preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op for merge_group (see file header comment)
+        if: github.event_name == 'merge_group'
+        run: echo "Not integration-sensitive; already verified by the push-triggered run. Nothing to re-check here."
+
+      - uses: actions/checkout@v7
+        if: github.event_name != 'merge_group'
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v7
+        if: github.event_name != 'merge_group'
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint and
+      # markdownlint-cli2: cspell needs to actually be a devDependency in
+      # package.json for this to use a pinned version rather than npx
+      # fetching whatever's latest on the registry at run time.
+      - name: Install cspell
+        if: github.event_name != 'merge_group'
+        run: npm ci
+
+      - name: Print cspell version
+        if: github.event_name != 'merge_group'
+        run: npx cspell --version
+
+      # config is set explicitly since cspell.json lives in .config/, not
+      # the repo root where cspell looks by default.
+      #
+      # `.github/**/*` and `.config/**/*` are listed alongside `**/*`
+      # because cspell's own glob matching (like most tools built on
+      # globby) doesn't descend into dot-directories under a bare `**/*`
+      # - confirmed by testing locally: without these, only top-level
+      # non-dot files got checked at all, silently skipping every
+      # workflow file and every other file already living in .config/.
+      - name: Check spelling
+        if: github.event_name != 'merge_group'
+        run: npx cspell --config ./.config/cspell.json "**/*" ".github/**/*" ".config/**/*"
+
   gm-cli-tests:
     # Adapted from a working example from another of your projects
     # (grid-utility-professional), not built from scratch - the container

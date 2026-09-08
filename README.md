@@ -115,7 +115,7 @@ OS: Linux x64 6.12.105+deb13-amd64
 | Tool                                  | Version                           |
 |---------------------------------------|-----------------------------------|
 | npm                                   | 11.18.0                           |
-| cSpell                                | 10.2.2                            |
+| cSpell                                | 10.3.0                            |
 | Markdownlint-Cli2                     | 0.23.0                            |
 | Markdownlint                          | 0.41.0                            |
 | Commitlint                            | 21.2.2                            |
