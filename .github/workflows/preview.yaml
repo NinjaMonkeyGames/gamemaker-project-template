@@ -60,10 +60,13 @@ jobs:
         if: github.event_name == 'merge_group'
         run: echo "Not integration-sensitive; already verified by the push-triggered run. Nothing to re-check here."
 
+      # fetch-depth: 0 (full history, all branches) rather than 2 - finding
+      # a merge-base for hotfix/* and release/* below needs real history,
+      # not just the last couple of commits.
       - uses: actions/checkout@v7
         if: github.event_name != 'merge_group'
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         if: github.event_name != 'merge_group'
@@ -81,10 +84,11 @@ jobs:
         if: github.event_name != 'merge_group'
         run: npx commitlint --version
 
-      # Lints only the most recent commit (HEAD) against
-      # .config/commitlint.config.mjs (Conventional Commits). --last means
-      # each push is checked commit-by-commit as it lands, rather than
-      # re-checking the whole branch's history against develop every time.
+      # feature/*: lints only the most recent commit (--last). Safe to
+      # check just the tip here, even across a multi-commit push, because
+      # feature/* -> develop is squash-merged - individual commits never
+      # survive into develop's history anyway (see pr-title-lint.yaml,
+      # which lints the PR title/body that actually lands there instead).
       #
       # This previously used wagoid/commitlint-github-action, which
       # reported "Lint free!" regardless of commit content. Root cause: the
@@ -95,14 +99,30 @@ jobs:
       # commitlint CLI directly surfaces a loud, explicit error on a wrong
       # config path instead of silently discarding your custom rules, and
       # matches the working pattern already used in pr-title-lint.yaml.
-      #
-      # Note: this checks the branch's raw commits, not the eventual
-      # squash-merge commit message - that's linted separately (see
-      # pr-title-lint.yaml) against the PR's title + body, since that's
-      # what actually lands on develop.
-      - name: Lint last commit
-        if: github.event_name != 'merge_group'
+      - name: Lint last commit (feature/*)
+        if: github.event_name != 'merge_group' && !startsWith(github.ref_name, 'hotfix/') && !startsWith(github.ref_name, 'release/')
         run: npx commitlint --config ./.config/commitlint.config.mjs --last
+
+      # hotfix/* and release/* merge into master with a regular merge
+      # commit (not squash - see CONTRIBUTING.md), so every individual
+      # commit's message survives into master's permanent history. --last
+      # only ever checks the single newest commit at push time: if a bad
+      # commit is buried under a later good one in the same push, it
+      # passes uncaught and its message reaches master unchecked. Linting
+      # the full range since the branch forked closes that gap.
+      #
+      # hotfix/* forks from master, so master is the right base. release/*
+      # forks from develop, NOT master - using master there would also
+      # re-lint all of develop's own history that hasn't reached master
+      # yet, which isn't this release branch's own work and isn't what's
+      # being checked here.
+      - name: Lint commit range (hotfix/*)
+        if: github.event_name != 'merge_group' && startsWith(github.ref_name, 'hotfix/')
+        run: npx commitlint --config ./.config/commitlint.config.mjs --from "$(git merge-base HEAD origin/master)" --to HEAD
+
+      - name: Lint commit range (release/*)
+        if: github.event_name != 'merge_group' && startsWith(github.ref_name, 'release/')
+        run: npx commitlint --config ./.config/commitlint.config.mjs --from "$(git merge-base HEAD origin/develop)" --to HEAD
 
   markdownlint:
     runs-on: ubuntu-latest
@@ -208,23 +228,61 @@ jobs:
           echo "Found project file: $YYP_PATH"
           echo "dir=$(dirname "$YYP_PATH")" >> "$GITHUB_OUTPUT"
 
+      # Fast compile-only check, deliberately run before the (slower,
+      # occasionally flaky - see the retry logic below) test execution
+      # step: a project that doesn't even compile is cheap to catch here,
+      # so there's no point running the full test suite against it first.
+      # Adapted from a working example (gm-cli-compile.yaml, from
+      # grid-utility-professional) - `compile` is a real gm-cli
+      # subcommand, distinct from `run`. Unlike test execution, a compile
+      # failure is deterministic, so no retry logic here.
+      - name: Compile project
+        if: github.event_name != 'merge_group'
+        working-directory: ${{ steps.discover.outputs.dir }}
+        run: npx @gamemaker/gm-cli@latest compile --verbose
+
       # Runs headless under a virtual X11 framebuffer, since there's no
       # real display in CI. Output is both shown live and saved to
-      # test_output.log for the next step to evaluate. `|| true` is
+      # test_output.log for gm-fail.sh to evaluate. `|| true` is
       # deliberate: gm-cli's own exit code isn't what determines
       # pass/fail here - gm-fail.sh inspecting the captured output is.
-      - name: Execute tests under virtual framebuffer
+      #
+      # Retries the whole run/evaluate cycle up to 3 attempts total:
+      # gm-cli has proven intermittently flaky (a real `[FAIL]` shows up
+      # in the log on some runs, at a different point each time, purely
+      # from re-running the same commit with no code changes). A fresh
+      # Xvfb is started each attempt, since a stale one from a killed
+      # prior attempt could itself be a source of flake. Only exhausting
+      # every attempt fails the job - this treats "flaky" as "retry it",
+      # not "ignore it": a genuine, consistent failure still fails after
+      # 3 attempts.
+      - name: Running unit tests (with retry)
         if: github.event_name != 'merge_group'
         working-directory: ${{ steps.discover.outputs.dir }}
         env:
           DISPLAY: ":99"
         run: |
-          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-          sleep 2
-          npx @gamemaker/gm-cli@latest run --verbose 2>&1 | tee test_output.log || true
+          chmod +x "$GITHUB_WORKSPACE/.config/gm-fail.sh"
+          max_attempts=3
+          attempt=1
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "::group::gm-cli attempt $attempt/$max_attempts"
+            pkill Xvfb 2>/dev/null || true
+            Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+            xvfb_pid=$!
+            sleep 2
+            npx @gamemaker/gm-cli@latest run --verbose 2>&1 | tee test_output.log || true
+            kill "$xvfb_pid" 2>/dev/null || true
+            echo "::endgroup::"
 
-      - name: Evaluate test output with gm-fail.sh
-        if: github.event_name != 'merge_group'
-        run: |
-          chmod +x ./.config/gm-fail.sh
-          ./.config/gm-fail.sh "${{ steps.discover.outputs.dir }}/test_output.log"
+            if "$GITHUB_WORKSPACE/.config/gm-fail.sh" test_output.log; then
+              echo "Tests passed on attempt $attempt."
+              exit 0
+            fi
+
+            echo "Attempt $attempt failed."
+            attempt=$((attempt + 1))
+          done
+
+          echo "Tests failed on all $max_attempts attempts - treating as a real failure, not flake."
+          exit 1
