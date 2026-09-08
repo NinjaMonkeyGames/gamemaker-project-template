@@ -1,0 +1,4 @@
+# scripts to write for sanitisation
+
+1. flag as deprecated:
+	- globalvar

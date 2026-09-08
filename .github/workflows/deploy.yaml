@@ -1,0 +1,47 @@
+# Example caller workflow: runs whenever master, develop, release/*,
+# hotfix/*, or feature/* is pushed to, targeting the environment resolved
+# by detect-environment.yaml.
+#
+# feature/* branches resolve to "preview", which is a job set (see
+# preview.yaml), not a deploy - so it's called as its own reusable
+# workflow rather than going through the generic "deploy" job below.
+#
+# The actual deploy steps in "deploy" are placeholders - replace the
+# "TODO" step with whatever this project really does (build + push an
+# image, run a deploy script, sync to a host, etc).
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - 'release/**'
+      - 'hotfix/**'
+      - 'feature/**'
+
+jobs:
+  detect-env:
+    uses: ./.github/workflows/detect-environment.yaml
+
+  preview:
+    needs: detect-env
+    if: needs.detect-env.outputs.environment == 'preview'
+    uses: ./.github/workflows/preview.yaml
+
+  deploy:
+    needs: detect-env
+    if: needs.detect-env.outputs.environment != 'none' && needs.detect-env.outputs.environment != 'preview'
+    runs-on: ubuntu-latest
+    # Ties into GitHub's own Environments feature (Settings > Environments):
+    # add required reviewers or environment-scoped secrets per environment
+    # there, e.g. require manual approval before anything reaches
+    # "production".
+    environment: ${{ needs.detect-env.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Deploy to ${{ needs.detect-env.outputs.environment }}
+        run: |
+          echo "TODO: replace with real deploy steps for '${{ needs.detect-env.outputs.environment }}'"
