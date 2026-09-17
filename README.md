@@ -109,6 +109,7 @@ OS: Linux x64 6.12.105+deb13-amd64
 | davidanson.vscode-markdownlint                                    | 0.62.1    |
 | redhat.vscode-yaml                                                | 1.24.0    |
 | joshbolduc.commitlint                                             | 2.6.3     |
+| timonwong.shellcheck                                              | 0.40.0    |
 
 ### CI TOOLS
 
@@ -121,6 +122,7 @@ OS: Linux x64 6.12.105+deb13-amd64
 | Commitlint                            | 21.2.2                            |
 | Commitlint config-conventional        | 21.2.2                            |
 | gm-cli                                | 2.3.0                             |
+| cSpell                                | 10.3.0                            |
 
 ### SUPPORTING TOOLS
 

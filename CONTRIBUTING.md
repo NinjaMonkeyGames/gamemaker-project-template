@@ -54,16 +54,28 @@ pull requests from supporting branches.
 
 ### Supporting branches
 
-| Branch | From      | Merges into          | Merge type    | Naming             | Purpose                         |
-|--------|-----------|----------------------|---------------|--------------------|---------------------------------|
-| Feature| `develop` | `develop`            | Squash merge  | `feature/<name>`   | New or in-progress functionality|
-| Release| `develop` | `master`, `develop`  | Merge commit  | `release/<version>`| Stabilise and prepare a release |
-| Hotfix | `master`  | `master`, `develop`  | Merge commit  | `hotfix/<version>` | Urgent production fixes         |
+| Branch | From      | Merges into           | Merge type    | Naming             | Purpose                         |
+|--------|-----------|-----------------------|---------------|--------------------|---------------------------------|
+| Feature| `develop` | `develop`             | Squash merge  | `feature/<name>`   | New or in-progress functionality|
+| Release| `develop` | `master`              | Merge commit  | `release/<version>`| Stabilise and prepare a release |
+| Hotfix | `master`  | `master`              | Merge commit  | `hotfix/<version>` | Urgent production fixes         |
 
 Squashing a feature branch collapses all of its commits into a single new
 commit on `develop`. That commit has no merge-parent link back to
 `feature/<name>`, so the branch's individual commits do not appear in
 `develop`'s history — only the squashed result does.
+
+**Neither `release/*` nor `hotfix/*` ever merges into `develop` directly.**
+Both only ever merge *out* to `master` via pull request. `develop` picks up
+everything that lands on `master` — a release, a hotfix, or semantic-release's
+own version-bump commit — exclusively through the automated sync pull request
+that `sync-master-to-develop.yaml` opens from `master` into `develop` (see
+[Starting a release](#starting-a-release) / [Starting a hotfix](#starting-a-hotfix)).
+Allowing a second, direct `release/*`/`hotfix/*` → `develop` path alongside
+that sync PR would risk the same commits landing in `develop`'s history twice,
+so `check-source-branch` rejects any pull request that targets `release/*` or
+`hotfix/*`, or that targets `develop` from anything other than `feature/*` or
+the sync PR's `master` head.
 
 ```mermaid
 %%{init: { 'gitGraph': { 'mainBranchName': 'master' }}}%%
@@ -83,7 +95,7 @@ gitGraph
    checkout master
    merge release/v1.0.0 tag: "v1.0.0"
    checkout develop
-   merge release/v1.0.0
+   merge master
    checkout master
    branch hotfix/v1.0.1
    checkout hotfix/v1.0.1
@@ -91,7 +103,7 @@ gitGraph
    checkout master
    merge hotfix/v1.0.1 tag: "v1.0.1"
    checkout develop
-   merge hotfix/v1.0.1
+   merge master
 ```
 
 ---
@@ -138,10 +150,13 @@ When the release branch is stable:
 
 1. Open a pull request from `release/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
-2. `sync-master-to-develop.yaml` automatically opens **and merges** a pull
-   request bringing that merge into `develop` (a regular merge commit,
-   not squash) — no manual step needed, so the fixes made during
-   stabilisation aren't lost.
+2. `sync-master-to-develop.yaml` automatically **opens** a pull request
+   bringing that merge (and anything else new on `master`, including
+   semantic-release's own version-bump commit) into `develop` as a regular
+   merge commit, not squash. It does **not** merge that PR — a human still
+   reviews and merges it, same as every other pull request in this repo.
+   Merge it once it's ready so the fixes made during stabilisation aren't
+   left behind.
 3. Delete the release branch.
 
 #### Starting a hotfix
@@ -158,12 +173,13 @@ When the fix is ready:
 
 1. Open a pull request from `hotfix/<version>` into `master`. Merging tags
    the resulting commit as `<version>`.
-2. `sync-master-to-develop.yaml` automatically opens **and merges** a pull
-   request bringing that merge into `develop` (a regular merge commit,
-   not squash) — no manual step needed, so the fix is included in future
-   releases. ⚠️ **Caution:** this automation only syncs into `develop`. If a
-   `release/*` branch is active at the same time, merge the fix into that
-   branch by hand too — the sync does not cover it.
+2. `sync-master-to-develop.yaml` automatically **opens** a pull request
+   bringing that merge into `develop` as a regular merge commit, not squash.
+   It does **not** merge that PR — a human still reviews and merges it. Do
+   this promptly so the fix is included in future releases. ⚠️ **Caution:**
+   this automation only opens a PR targeting `develop`. If a `release/*`
+   branch is active at the same time, merge the fix into that branch by
+   hand too — the sync PR does not cover it.
 3. Delete the hotfix branch.
 
 ---
@@ -178,8 +194,9 @@ When the fix is ready:
 - `feature/*` → `develop` pull requests must be **squash merged**.
 - `release/*` and `hotfix/*` pull requests must use a regular **merge
   commit** (not squash, not rebase) — this keeps `master`'s history and
-  tags accurate and preserves the full set of stabilisation commits when
-  merging back into `develop`.
+  tags accurate. The same applies to the automated `master` → `develop`
+  sync pull request, so the stabilisation commits it carries aren't
+  collapsed away.
 - Pull requests **into** `release/*` or `hotfix/*` are rejected outright
   by `check-source-branch` — these branches only ever merge *out* (to
   `master`). Push fixes to them directly instead; see
@@ -236,8 +253,8 @@ Beyond the standard Conventional Commits format, this project requires:
 ⚠️ **Not yet enforced by commitlint:** the imperative-mood rule above is
 currently a convention only — `.config/commitlint.config.mjs` has no rule
 checking it (commitlint has no built-in imperative-mood check), so
-"added"/"updated" subjects will still pass CI today. See the TODO in that
-file for tightening this.
+"added"/"updated" subjects will still pass CI today. Tightening this is
+tracked as future work; there is no rule for it in that file yet.
 
 🔒 **Separately enforced by branch protection, not commitlint:** every
 commit, on every branch, must be **cryptographically signed** (GPG or
@@ -263,17 +280,30 @@ Signed-off-by: Jane Doe <jane@example.com>
 
 ## Continuous integration checks
 
-Pushing to a `feature/*` branch, and opening a pull request into `develop`
-or `master`, each trigger automated checks:
+Pushing to any branch, and opening a pull request into `develop` or
+`master`, trigger automated checks:
 
-| Check                    | Runs on                                  | What it checks                                |
-|--------------------------|------------------------------------------|-----------------------------------------------|
-| `preview / commitlint`   | Push to `feature/*`                      | Latest commit message; see [requirements][cm] |
-| `preview / markdownlint` | Push to `feature/*`                      | Every Markdown file in the repository         |
-| `lint-pr-message`        | `feature/*` → `develop` pull requests    | PR title and body become the squash commit    |
-| `check-source-branch`    | Pull requests into `master` or `develop` | PR source branch matches the allowed pairings |
+| Check                    | Runs on                          | What it checks                                   |
+|--------------------------|----------------------------------|--------------------------------------------------|
+| `preview / commitlint`   | Every push*                      | Latest commit (or range); see [requirements][cm] |
+| `preview / markdownlint` | Every push*                      | Every Markdown file in the repo                  |
+| `preview / cspell`       | Every push*                      | Spelling across the repository                   |
+| `preview / gm-cli-tests` | Every push*                      | Project compiles and tests pass                  |
+| `lint-pr-message`        | feature/* → develop PRs          | PR title/body become the squash commit           |
+| `check-source-branch`    | PRs into 4 branches†             | Source branch is on the allow-list               |
+| `release`                | Push to master/develop/release/* | Runs semantic-release when warranted             |
+| `sync`                   | Push to master                   | Opens master → develop sync PR (no auto-merge)   |
 
 [cm]: #commit-message-requirements
+
+\* Push to `feature/*`, `develop`, `release/*`, `hotfix/*`, or `master`.
+
+† `master`, `develop`, `release/*`, or `hotfix/*`.
+
+`preview / cspell` and `preview / gm-cli-tests` are currently stubbed out
+(temporarily disabled while other parts of CI are still being built) but
+remain required status checks, so they still report a result on every
+push above rather than leaving a PR waiting indefinitely.
 
 `preview / commitlint` and `preview / markdownlint` also register a
 `preview` GitHub Deployment for the commit.
@@ -286,10 +316,6 @@ redundant: the jobs that create the `preview` deployment are the same
 jobs already enforced as required status checks above, so the rule adds
 no protection that isn't already there. Require the status checks
 themselves, not the deployment.
-
-`preview / commitlint` and `preview / markdownlint` also register a
-`preview` GitHub Deployment for the commit, so a "Require deployments to
-succeed: preview" branch protection rule has something to check against.
 
 ---
 

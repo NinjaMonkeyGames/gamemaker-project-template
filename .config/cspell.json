@@ -30,6 +30,7 @@
         "ninjamonkeygames",
         "obj",
         "particlesystem",
+        "shellcheck",
         "tilemap",
         "vbuff",
         "vformat",
