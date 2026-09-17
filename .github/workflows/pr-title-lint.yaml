@@ -1,0 +1,60 @@
+# Lints the pull request's title + body together as a single Conventional
+# Commit message, reusing the *same* .config/commitlint.config.mjs (and its custom
+# signed-off-by-regex plugin) that lints individual commits in
+# preview.yaml. One set of rules, checked in both places - not a separate
+# tool with its own duplicated type/scope list.
+#
+# Why title+body, not title alone: feature/* -> develop PRs are
+# squash-merged (see CONTRIBUTING.md), so none of the branch's individual
+# commits survive into develop's history - only the squash commit does.
+# Checking signed-off-by (or any body/footer rule) against commits that are
+# about to be discarded is redundant; the check has to run against what
+# will actually persist, which is the PR's title and body.
+#
+# IMPORTANT: for a valid Signed-off-by line to actually carry into
+# develop's history (not just pass this check), the repo's squash-merge
+# default commit message must include the PR description:
+#   Settings > General > Pull Requests > Allow squash merging >
+#   Default commit message > "Pull request title and description"
+# Otherwise GitHub's default squash message drops the body, and this
+# check would be validating text that never reaches history.
+
+name: Lint PR Message
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches:
+      - develop
+
+jobs:
+  lint-pr-message:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install commitlint
+        run: npm ci
+
+      - name: Print commitlint version
+        run: npx commitlint --version
+
+      # Title and body are passed via env, not interpolated directly into
+      # the script, since PR title/body is untrusted user input.
+      - name: Assemble title + body as one message
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s\n\n%s\n' "$TITLE" "$BODY" > pr-message.txt
+
+      # --edit tells commitlint to lint this file's raw content directly
+      # (the same mode used for commit-msg git hooks), instead of its
+      # default "derive commits from git" behavior - which, with no
+      # --edit/--from/--last given, was silently ignoring pr-message.txt
+      # and linting the branch's last commit instead.
+      - name: Lint against .config/commitlint.config.mjs
+        run: npx commitlint --config .config/commitlint.config.mjs --edit pr-message.txt

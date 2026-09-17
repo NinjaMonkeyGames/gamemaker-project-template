@@ -1,0 +1,13 @@
+{
+  "$GMScript":"v1",
+  "%Name":"spt_get_asset_type_as_string",
+  "isCompatibility":false,
+  "isDnD":false,
+  "name":"spt_get_asset_type_as_string",
+  "parent":{
+    "name":"grid-utility-professional",
+    "path":"grid-utility-professional.yyp",
+  },
+  "resourceType":"GMScript",
+  "resourceVersion":"2.0",
+}
