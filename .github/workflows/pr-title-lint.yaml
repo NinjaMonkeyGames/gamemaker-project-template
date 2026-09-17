@@ -1,23 +1,59 @@
 # Lints the pull request's title + body together as a single Conventional
-# Commit message, reusing the *same* .config/commitlint.config.mjs (and its custom
-# signed-off-by-regex plugin) that lints individual commits in
-# preview.yaml. One set of rules, checked in both places - not a separate
+# Commit message, reusing .config/commitlint.pr-message.config.mjs - a
+# thin wrapper around .config/commitlint.config.mjs (see that file) that
+# turns off two specific rules for this check only. Why is explained
+# below; every other rule (type/scope/subject/body/references/etc.) is
+# still the same one set of rules checked in both places, not a separate
 # tool with its own duplicated type/scope list.
 #
 # Why title+body, not title alone: feature/* -> develop PRs are
 # squash-merged (see CONTRIBUTING.md), so none of the branch's individual
 # commits survive into develop's history - only the squash commit does.
-# Checking signed-off-by (or any body/footer rule) against commits that are
-# about to be discarded is redundant; the check has to run against what
-# will actually persist, which is the PR's title and body.
+# Most rules (type/scope/subject/body/references) have to run against the
+# PR's title and body specifically, since that - not the discarded
+# commits - is what the squash commit's own header and body end up being.
 #
-# IMPORTANT: for a valid Signed-off-by line to actually carry into
-# develop's history (not just pass this check), the repo's squash-merge
-# default commit message must include the PR description:
+# IMPORTANT: for that to actually be true, the repo's squash-merge default
+# commit message must include the PR description:
 #   Settings > General > Pull Requests > Allow squash merging >
 #   Default commit message > "Pull request title and description"
 # Otherwise GitHub's default squash message drops the body, and this
 # check would be validating text that never reaches history.
+#
+# CONFIRMED LIVE: the one exception to "check title+body because that's
+# what persists" is the Signed-off-by trailer, which is why
+# signed-off-by-regex and signed-off-by are disabled in
+# commitlint.pr-message.config.mjs for THIS check specifically. Opening a
+# PR from a single-commit feature branch whose commit already carries a
+# valid Signed-off-by trailer, GitHub auto-fills the PR description from
+# that commit's body but silently strips the Signed-off-by line out of
+# it - not because it's missing, but because GitHub recognises it as a
+# git trailer and re-attaches it to the final squash commit automatically
+# from the source commit(s), independent of whatever the PR description
+# says. Manually retyping it into the PR description (to satisfy this
+# check) doesn't add real coverage - the commit already has it, and that
+# commit is already fully linted, signed-off-by included, by
+# preview.yaml's "Lint last commit (feature/*)" step on every push to the
+# branch. It only creates a second copy, which GitHub then displays
+# stacked with the one it re-attaches at squash time in the "Squash and
+# merge" button's editable commit message box - visible duplicate lines,
+# same trailer twice, for no reason. Checking it here too can only ever
+# be redundant (already-present in the commit) or actively wrong
+# (encouraging a duplicate) - either way, not this job's rule to enforce.
+#
+# NOT YET COVERED: a feature branch with MORE than one commit. GitHub's
+# trailer-carry-forward reads every commit being squashed, not just the
+# tip, but preview.yaml's "Lint last commit (feature/*)" step only lints
+# the tip (`--last`) - so an earlier, non-tip commit's Signed-off-by is
+# not currently verified anywhere before it gets carried into develop's
+# history. Low risk today (this repo's feature branches are generally
+# short-lived, close to single-commit in practice), but if that stops
+# being true, this job is the natural place to add a step that lints the
+# signed-off-by rules alone (a config mirroring
+# commitlint.pr-message.config.mjs's inverse - everything else off, just
+# those two on) against every commit in the PR's range, the same way
+# preview.yaml already does `--from "$(git merge-base ...)" --to HEAD`
+# for hotfix/*/release/*.
 
 name: Lint PR Message
 
@@ -53,8 +89,8 @@ jobs:
 
       # --edit tells commitlint to lint this file's raw content directly
       # (the same mode used for commit-msg git hooks), instead of its
-      # default "derive commits from git" behavior - which, with no
+      # default "derive commits from git" behaviour - which, with no
       # --edit/--from/--last given, was silently ignoring pr-message.txt
       # and linting the branch's last commit instead.
-      - name: Lint against .config/commitlint.config.mjs
-        run: npx commitlint --config .config/commitlint.config.mjs --edit pr-message.txt
+      - name: Lint against .config/commitlint.pr-message.config.mjs
+        run: npx commitlint --config .config/commitlint.pr-message.config.mjs --edit pr-message.txt
