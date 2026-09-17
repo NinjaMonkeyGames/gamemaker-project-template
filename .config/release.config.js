@@ -33,6 +33,13 @@
 // EVERY future release.yaml run repo-wide, not just release/* ones,
 // until it's deleted.
 //
+// CONFIRMED LIVE (2nd occurrence): exactly this happened with
+// "release/test" and "release/this" coexisting - both resolved to the
+// same "rc" identifier and every release.yaml run failed with
+// EPRERELEASEBRANCHES until one branch was deleted. Reproduced easily
+// enough (two ad-hoc test branches left lying around) that this is a
+// real operational hazard, not just a theoretical edge case.
+//
 // This config has always assumed exactly one release/* branch exists at
 // a time - nothing in detect-environment.yaml/deploy.yaml/
 // branch-protection.yaml distinguishes multiple concurrent ones either.
@@ -106,6 +113,19 @@ export default {
     // release itself published fine. Disabling it trades away the
     // automatic "released in vX.Y.Z" issue comment for not letting that
     // one convenience feature take down an otherwise-successful release.
-    ['@semantic-release/github', { successComment: false }],
+    //
+    // failComment: false is the same trade on the opposite path, added
+    // after CONFIRMED LIVE: a genuine failure (EPRERELEASEBRANCHES, two
+    // release/* branches coexisting - see above) made this plugin's own
+    // "fail" step - which tries to comment on referenced issues saying
+    // the release failed - throw its own unrelated
+    // "TypeError: Cannot read properties of undefined (reading 'name')"
+    // in get-fail-comment.js, on top of the real error. Both errors
+    // printed, but the crash appeared first and looked like the actual
+    // cause, burying the real EPRERELEASEBRANCHES message underneath it.
+    // Same reasoning as successComment: a best-effort convenience
+    // comment isn't worth letting it make a real failure harder to read,
+    // let alone risk it masking one entirely.
+    ['@semantic-release/github', { successComment: false, failComment: false }],
   ],
 };

@@ -99,8 +99,28 @@ jobs:
       # commitlint CLI directly surfaces a loud, explicit error on a wrong
       # config path instead of silently discarding your custom rules, and
       # matches the working pattern already used in pr-title-lint.yaml.
+      #
+      # CONFIRMED LIVE: this step's condition used to be
+      # `!startsWith(hotfix/) && !startsWith(release/)` - a double
+      # negative that reads like "everything except hotfix/release" and,
+      # despite the step's own name, actually included master and develop
+      # pushes too, not just feature/*. Those branches only ever receive
+      # MERGE commits (release/*/hotfix/* -> master, and the
+      # master -> develop sync PR) - synthetic commits whose own message
+      # was never meant to be a standalone conventional commit, since the
+      # real content it merges in was already fully linted commit-by-
+      # commit when that source branch was pushed (see "Lint commit range
+      # (hotfix/*)" / "(release/*)" below). A push to master whose merge
+      # commit message doesn't happen to carry a Signed-off-by line -
+      # nothing requires one there, since pr-title-lint.yaml only checks
+      # PRs into develop - failed this step on every single signed-off-by
+      # rule, on every release/hotfix merge into master, forever. Scoping
+      # this to an explicit `startsWith(feature/)` match instead - rather
+      # than a fallback that silently absorbed every branch nobody had
+      # written an explicit case for - is what actually restricts it to
+      # the one case it was always meant to cover.
       - name: Lint last commit (feature/*)
-        if: github.event_name != 'merge_group' && !startsWith(github.ref_name, 'hotfix/') && !startsWith(github.ref_name, 'release/')
+        if: github.event_name != 'merge_group' && startsWith(github.ref_name, 'feature/')
         run: npx commitlint --config ./.config/commitlint.config.mjs --last
 
       # hotfix/* and release/* merge into master with a regular merge
