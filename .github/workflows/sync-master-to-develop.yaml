@@ -11,64 +11,69 @@
 # automatically (that's just how GitHub PRs work), so the existing PR
 # already reflects new commits without this workflow touching it again.
 #
+# This only ever syncs master into develop. release/* and hotfix/*
+# branches can't be brought into sync the same way: check-source-branch's
+# whitelist rejects any PR merging INTO a release/*/hotfix/* branch, since
+# those branches only ever merge OUT (to master). Keeping an in-flight
+# release/* or hotfix/* branch current with master is a manual step -
+# push the needed commit directly onto the branch, no PR - see
+# CONTRIBUTING.md's hotfix section.
+#
 # Merge this PR with a regular merge commit, not squash - same reasoning
 # as release/* and hotfix/* merging back into develop (see
 # CONTRIBUTING.md): this preserves history rather than collapsing it.
 #
+# For the PR's title+body to actually be what lands in develop's history,
+# the "Allow merge commits" default commit message setting must be
+# configured to use the pull request title and description:
+#   Settings > General > Pull Requests > Allow merge commits >
+#   Default commit message > "Default to pull request title and
+#   description"
+# Left on its default, GitHub instead auto-generates the merge commit
+# message from a list of the underlying commits being merged (in this
+# repo's case, the full multi-paragraph changelog bodies of every
+# "chore(release): x.y.z" commit since the last sync), and the carefully
+# written body below never reaches develop's history even though it
+# still satisfies pr-title-lint.yaml's check (which lints the PR's
+# title+body directly, not whatever ends up in git history).
+#
 # The title + body below are pre-written to satisfy pr-title-lint.yaml's
 # commitlint check (same .config/commitlint.config.mjs, run against
-# title+body as one message) on the first open, instead of needing a
-# manual edit every time - which is what was happening before this:
+# title+body as one message) on the first open, rather than needing a
+# manual edit every time:
 #   - title: "chore(config): sync master into develop" - "config" is a
 #     real entry in scope-enum, subject is lowercase and under 50 chars.
-#   - body: sentence-case, >=10 chars, every line under 72 - copied
-#     verbatim from the manually-edited version that's already confirmed
-#     to pass.
+#   - body: sentence-case, >=10 chars, every line under 72.
 #   - "References #1", not "Closes #1" - Closes is a GitHub auto-close
 #     keyword, and issue #1 is meant to stay open forever as a running
-#     log of every sync (confirmed with the repo owner: every future
-#     sync PR references the same #1, none of them should ever close
-#     it). References links the PR into #1's timeline without closing
-#     it, and still satisfies commitlint's references-empty rule -
-#     confirmed locally with real commitlint against this exact message.
+#     log of every sync (every sync PR references the same #1; none of
+#     them should ever close it). References links the PR into #1's
+#     timeline without closing it, and still satisfies commitlint's
+#     references-empty rule.
 #   - Signed-off-by carries nmg-bot's own identity, not a human's - this
 #     PR is genuinely bot-generated, no human wrote it, so a human DCO
-#     signoff would misattribute authorship.
+#     signoff would misattribute authorship. The plain
+#     "nmg-bot[bot]@users.noreply.github.com" form (rather than the
+#     numeric-id form GitHub uses to attribute real commits/authorship,
+#     e.g. "195387234+nmg-bot[bot]@users.noreply.github.com") is used
+#     here because this trailer is just a DCO-style footer line, not tied
+#     to real git authorship (the merge/PR itself is already
+#     authenticated as nmg-bot via the App token elsewhere in this repo's
+#     workflows) - and the numeric-id form runs long enough to risk
+#     tripping footer-max-line-length (72, set in commitlint.config.mjs)
+#     depending on how many digits nmg-bot's numeric id renders as. The
+#     plain form stays comfortably under the limit regardless.
 #
-# CONFIRMED LIVE: the PR must be opened with nmg-bot's own minted App
-# token, not the default GITHUB_TOKEN. GitHub does not let the default
-# GITHUB_TOKEN trigger further workflow runs (recursion prevention) -
-# for pull_request opened/synchronize/reopened specifically, it doesn't
-# skip the run outright, it creates the run and holds it in "Action
-# required" pending manual approval forever. Opening this PR with
-# GITHUB_TOKEN (the actions/github-script default) left
-# pr-title-lint.yaml and branch-protection.yaml stuck exactly like that
-# on the PR's initial "opened" event - they only ran normally later, once
-# nmg-bot's own follow-up push to master hit the PR as a "synchronize"
-# event, because that push was authenticated with a real App installation
-# token instead. Minting the same token here (as release.yaml already
-# does) and passing it to github-script's `github-token:` input makes the
-# "opened" event authenticate the same way, so both checks run
-# immediately instead of sitting on a stuck approval every single sync.
-#
-# CONFIRMED LOCALLY (real commitlint + @commitlint/config-conventional,
-# the custom signed-off-by-regex plugin stubbed since its exact regex has
-# never been shared in this conversation - everything else is real):
-# the natural bot line, "Signed-off-by: nmg-bot[bot]
-# <195387234+nmg-bot[bot]@users.noreply.github.com>" (the numeric-id
-# form GitHub actually uses to attribute real commits/authorship to a
-# bot), is 77 characters and fails footer-max-line-length (72, set in
-# commitlint.config.mjs) outright - and that failure would only show up
-# the day nmg-bot's actual numeric id happened to be that long, i.e.
-# possibly never during testing with a shorter placeholder. This trailer
-# isn't tied to real git authorship (the merge/PR itself is already
-# authenticated as nmg-bot via the App token elsewhere in this repo's
-# workflows) - it's just a DCO-style footer line - so there's no need for
-# the numeric-id form here at all. Using the plain
-# "nmg-bot[bot]@users.noreply.github.com" form instead (67 characters)
-# keeps it recognizably nmg-bot's own address, stays comfortably under
-# the limit, and - unlike the numeric-id form - can't be pushed over 72
-# later just because the id happens to render longer.
+# The PR is opened with nmg-bot's own minted App token, not the default
+# GITHUB_TOKEN: GitHub does not let the default GITHUB_TOKEN trigger
+# further workflow runs (recursion prevention) - for
+# pull_request opened/synchronize/reopened specifically, it doesn't skip
+# the run outright, it creates the run and holds it in "Action required"
+# pending manual approval forever. Minting the same App token here (as
+# release.yaml already does) and passing it to github-script's
+# `github-token:` input makes the PR's "opened" event authenticate as a
+# real App installation, so pr-title-lint.yaml and branch-protection.yaml
+# run immediately instead of sitting on a stuck approval every sync.
 
 name: Sync Master to Develop
 

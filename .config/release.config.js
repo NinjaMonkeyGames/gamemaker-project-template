@@ -20,32 +20,23 @@
 // preset (conventional-changelog-conventionalcommits), the same preset
 // commitlint is configured against elsewhere in this repo - one commit
 // grammar, not two.
-// CONFIRMED LIVE: `release/*` here matches EVERY branch in the repo that
-// fits the glob, not just "the" release branch - and semantic-release
-// resolves it that way on every single run, for every branch, not only
-// when a release/* branch itself is what triggered the run. Two
-// release/* branches coexisting (e.g. an old one left over after merging
-// to master instead of being deleted) both get the same fixed
-// prerelease: 'rc' identifier, which semantic-release refuses outright
-// (EPRERELEASEBRANCHES - it needs a unique identifier per branch to know
-// which branch a version like 1.0.0-rc.1 belongs to) - and because
-// branch validation runs unconditionally, that one stray branch breaks
-// EVERY future release.yaml run repo-wide, not just release/* ones,
-// until it's deleted.
 //
-// CONFIRMED LIVE (2nd occurrence): exactly this happened with
-// "release/test" and "release/this" coexisting - both resolved to the
-// same "rc" identifier and every release.yaml run failed with
-// EPRERELEASEBRANCHES until one branch was deleted. Reproduced easily
-// enough (two ad-hoc test branches left lying around) that this is a
-// real operational hazard, not just a theoretical edge case.
-//
-// This config has always assumed exactly one release/* branch exists at
-// a time - nothing in detect-environment.yaml/deploy.yaml/
-// branch-protection.yaml distinguishes multiple concurrent ones either.
-// Enable "Automatically delete head branches" in repo Settings > General
-// so a merged release/*|hotfix/* branch can't linger and silently
-// reintroduce this.
+// `release/*` here matches EVERY branch in the repo that fits the glob,
+// not just a single intended release branch, and semantic-release
+// resolves the full `branches` array on every run regardless of which
+// branch triggered it. This config assumes exactly one release/* branch
+// exists at a time: two coexisting release/* branches both resolve to
+// the same fixed `prerelease: 'rc'` identifier, which semantic-release
+// refuses outright (EPRERELEASEBRANCHES - it needs a unique identifier
+// per branch to know which branch a version like 1.0.0-rc.1 belongs to),
+// and because branch validation runs unconditionally, one stray leftover
+// release/* branch breaks every future release.yaml run repo-wide, not
+// just release/* ones, until it's deleted. Nothing in
+// detect-environment.yaml/deploy.yaml/branch-protection.yaml
+// distinguishes multiple concurrent release/* branches either, so this
+// is enforced only by convention. Enable "Automatically delete head
+// branches" in repo Settings > General so a merged release/*|hotfix/*
+// branch can't linger and silently reintroduce this.
 export default {
   branches: [
     'master',
@@ -114,18 +105,16 @@ export default {
     // automatic "released in vX.Y.Z" issue comment for not letting that
     // one convenience feature take down an otherwise-successful release.
     //
-    // failComment: false is the same trade on the opposite path, added
-    // after CONFIRMED LIVE: a genuine failure (EPRERELEASEBRANCHES, two
-    // release/* branches coexisting - see above) made this plugin's own
-    // "fail" step - which tries to comment on referenced issues saying
-    // the release failed - throw its own unrelated
-    // "TypeError: Cannot read properties of undefined (reading 'name')"
-    // in get-fail-comment.js, on top of the real error. Both errors
-    // printed, but the crash appeared first and looked like the actual
-    // cause, burying the real EPRERELEASEBRANCHES message underneath it.
-    // Same reasoning as successComment: a best-effort convenience
-    // comment isn't worth letting it make a real failure harder to read,
-    // let alone risk it masking one entirely.
+    // failComment: false is the same trade on the opposite path: on a
+    // validation failure (e.g. EPRERELEASEBRANCHES, see above), this
+    // plugin's own "fail" step - which tries to comment on referenced
+    // issues saying the release failed - can throw its own unrelated
+    // error before the real error is ever shown, since some failures
+    // happen before this plugin has everything it needs to build that
+    // comment. A crash there would print first and obscure the actual
+    // cause underneath it. Same reasoning as successComment: a
+    // best-effort convenience comment isn't worth letting it make a real
+    // failure harder to read, let alone risk masking one entirely.
     ['@semantic-release/github', { successComment: false, failComment: false }],
   ],
 };

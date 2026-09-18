@@ -20,40 +20,40 @@
 # Otherwise GitHub's default squash message drops the body, and this
 # check would be validating text that never reaches history.
 #
-# CONFIRMED LIVE: the one exception to "check title+body because that's
-# what persists" is the Signed-off-by trailer, which is why
-# signed-off-by-regex and signed-off-by are disabled in
-# commitlint.pr-message.config.mjs for THIS check specifically. Opening a
-# PR from a single-commit feature branch whose commit already carries a
+# The one exception to "check title+body because that's what persists" is
+# the Signed-off-by trailer, which is why signed-off-by-regex and
+# signed-off-by are disabled in commitlint.pr-message.config.mjs for THIS
+# check specifically. When a feature branch's commit already carries a
 # valid Signed-off-by trailer, GitHub auto-fills the PR description from
-# that commit's body but silently strips the Signed-off-by line out of
-# it - not because it's missing, but because GitHub recognises it as a
-# git trailer and re-attaches it to the final squash commit automatically
-# from the source commit(s), independent of whatever the PR description
-# says. Manually retyping it into the PR description (to satisfy this
-# check) doesn't add real coverage - the commit already has it, and that
-# commit is already fully linted, signed-off-by included, by
-# preview.yaml's "Lint last commit (feature/*)" step on every push to the
-# branch. It only creates a second copy, which GitHub then displays
-# stacked with the one it re-attaches at squash time in the "Squash and
-# merge" button's editable commit message box - visible duplicate lines,
-# same trailer twice, for no reason. Checking it here too can only ever
-# be redundant (already-present in the commit) or actively wrong
-# (encouraging a duplicate) - either way, not this job's rule to enforce.
+# that commit's body but strips the Signed-off-by line out of it - not
+# because it's missing, but because GitHub recognises it as a git trailer
+# and re-attaches it to the final squash commit automatically from the
+# source commit(s), independent of whatever the PR description says.
+# Requiring it in the PR body too doesn't add coverage - the source
+# commit already has it, and that commit is already fully linted,
+# signed-off-by included, by preview.yaml's "Lint last commit (feature/*)"
+# step on every push to the branch. It would only produce a second,
+# duplicate copy of the same trailer once GitHub carries the real one
+# forward at squash time.
 #
-# NOT YET COVERED: a feature branch with MORE than one commit. GitHub's
-# trailer-carry-forward reads every commit being squashed, not just the
-# tip, but preview.yaml's "Lint last commit (feature/*)" step only lints
-# the tip (`--last`) - so an earlier, non-tip commit's Signed-off-by is
-# not currently verified anywhere before it gets carried into develop's
-# history. Low risk today (this repo's feature branches are generally
-# short-lived, close to single-commit in practice), but if that stops
-# being true, this job is the natural place to add a step that lints the
-# signed-off-by rules alone (a config mirroring
-# commitlint.pr-message.config.mjs's inverse - everything else off, just
-# those two on) against every commit in the PR's range, the same way
-# preview.yaml already does `--from "$(git merge-base ...)" --to HEAD`
-# for hotfix/*/release/*.
+# GitHub's trailer-carry-forward reads every commit being squashed, not
+# just the tip, while preview.yaml's "Lint last commit (feature/*)" step
+# only ever lints the tip (`--last`). The "Lint signed-off-by (full commit
+# range)" step below covers the rest of a multi-commit feature branch: it
+# checks ONLY the two signed-off-by rules
+# (commitlint.signed-off-only.config.mjs - the inverse of
+# commitlint.pr-message.config.mjs, everything else off, just those two
+# on) against every commit since this branch forked from develop, the
+# same way preview.yaml already does `--from "$(git merge-base ...)" --to
+# HEAD` for hotfix/*/release/*. The checkout below fetches full history
+# and checks out the PR's real head commit (not the synthetic
+# refs/pull/N/merge ref actions/checkout uses by default for
+# pull_request events, which would otherwise get linted as an extra,
+# unrelated commit in the range).
+#
+# develop does not use a merge queue, so this only ever triggers on the
+# PR's own pull_request events - there is no separate merge_group case to
+# account for here.
 
 name: Lint PR Message
 
@@ -67,7 +67,14 @@ jobs:
   lint-pr-message:
     runs-on: ubuntu-latest
     steps:
+      # ref + fetch-depth: 0 - see the header comment on the
+      # "Lint signed-off-by (full commit range)" step below for why: it
+      # needs this PR's real head commit (not the synthetic merge ref)
+      # and full history to compute a merge-base against origin/develop.
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:
@@ -89,8 +96,15 @@ jobs:
 
       # --edit tells commitlint to lint this file's raw content directly
       # (the same mode used for commit-msg git hooks), instead of its
-      # default "derive commits from git" behaviour - which, with no
-      # --edit/--from/--last given, was silently ignoring pr-message.txt
-      # and linting the branch's last commit instead.
+      # default "derive commits from git" behavior, which would ignore
+      # pr-message.txt and lint the branch's last commit instead.
       - name: Lint against .config/commitlint.pr-message.config.mjs
         run: npx commitlint --config .config/commitlint.pr-message.config.mjs --edit pr-message.txt
+
+      # Checks every commit since this branch forked from develop - not
+      # just the PR's title+body - against the signed-off-by rules alone,
+      # so that a non-tip commit's missing/malformed signature can't reach
+      # develop's history unnoticed (see the header comment above on why
+      # this needs its own step alongside the title+body lint).
+      - name: Lint signed-off-by (full commit range)
+        run: npx commitlint --config .config/commitlint.signed-off-only.config.mjs --from "$(git merge-base HEAD origin/develop)" --to HEAD

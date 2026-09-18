@@ -3,7 +3,7 @@
 #   develop    -> beta prerelease
 #   release/*  -> rc prerelease
 # Config: .config/release.config.js (loaded via --extends, since
-# semantic-release only auto-finds config at the repo root).
+# semantic-release only auto-discovers config at the repo root).
 #
 # Runs as nmg-bot (GitHub App token) because it needs actual write
 # access: semantic-release's own auth check pushes a probe commit, and
@@ -28,66 +28,28 @@
 # not configured" for any hotfix/* push, which is harmless noise but
 # worth avoiding).
 #
-# CONFIRMED LIVE (and since REMOVED - see below): cutting release/*
-# straight from develop's current tip used to inherit whatever
-# commit-message suppression that tip commit carried; with "[skip ci]"
-# in the message, GitHub skipped a push-triggered workflow run based on
-# whatever commit the ref now pointed at, so a release/* branch's first
-# push could silently run no release at all. The original fix was an
-# `on: create` trigger, since `create` fires whenever a ref is made and,
-# unlike `push`, isn't suppressible by commit message at all.
+# Triggers on `push` only. A branch's first push (including the push
+# that creates it) and every later push are both plain `push` events -
+# nothing in this repo's commit messages ever suppresses CI (see
+# verified-git-commit.plugin.cjs: its commit message deliberately never
+# carries "[skip ci]"), so there's no separate event type needed to
+# guarantee a run happens.
 #
-# That fix is gone now, on purpose. verified-git-commit.plugin.cjs's
-# DEFAULT_MESSAGE stopped carrying "[skip ci]" a while back (see that
-# file's header comment) - so the one problem `on: create` existed to
-# solve no longer exists anywhere in this repo: a plain `push` now always
-# fires, message content irrelevant, including a release/* branch's
-# first push. Keeping `create` around after that stopped being true
-# wasn't harmless leftover - it actively caused a NEW bug:
-#
-# CONFIRMED LIVE: cutting a release/* branch (an ordinary `git push` of a
-# newly created branch, no separate commits) fires BOTH a `push` event
-# and a `create` event for that same push - that's standard GitHub
-# behavior for any new branch, not something specific to this repo.
-# Both events matched this workflow's old `on:` block and both started a
-# real run. The `concurrency.group` below was `release-${{ github.ref }}`
-# to stop exactly this kind of double-run from racing - but `github.ref`
-# is NOT populated the same way for a `create` event as it is for `push`:
-# push resolves it to `refs/heads/release/<name>` as expected, but create
-# does not (this is the same `github.ref` vs `github.ref_name` gap
-# detect-environment.yaml already works around by using
-# `github.head_ref || github.ref_name` instead of `github.ref` directly -
-# this file just hadn't been updated to match). The two runs landed in
-# DIFFERENT concurrency groups, so neither queued behind the other - both
-# ran fully in parallel, both computed the same next version from the
-# same starting point, and both tried to `git tag v<version>` the exact
-# same tag. One won; the other failed outright with "fatal: tag
-# 'v<version>' already exists" (exit 128) - a real release still shipped
-# correctly from the run that won the race, but the loser's run shows as
-# a failed job on every single release/* branch cut, forever.
-#
-# Fix: drop `create` entirely, now that it has no remaining job to do.
-# A plain `push` trigger alone already covers a release/* branch's first
-# push correctly (no more [skip ci] to dodge), so there's no longer a
-# second event to race against, and no need to reconcile `github.ref`
-# across two trigger types that no longer both need to exist here.
-#
-# The job's `if:` also skips ordinary pushes whose head commit was
-# authored by nmg-bot - i.e. the bot's own previous version-bump commit
-# landing as a push in its own right. Not a correctness requirement
-# (commit-analyzer wouldn't classify a "chore(release): ..." commit as
-# release-worthy anyway, under the conventionalcommits preset's default
-# rules, so this would otherwise just cleanly no-op) - purely to avoid
-# paying for a full npm ci + semantic-release invocation that can only
-# ever conclude "nothing to release" against the exact commit it itself
-# just created. NOT YET CONFIRMED LIVE: this assumes a commit created via
-# the Git Data API with no custom author/committer (as
-# verified-git-commit.plugin.cjs does) gets attributed to the App's bot
-# login in the format "nmg-bot[bot]" - reasonably well-supported, but
-# verify against a real run before trusting it for anything beyond "worst
-# case, it fails open and still runs" (a mismatch just means this
-# condition is never true, so the job runs every time rather than
-# silently never running - the safe direction to get wrong).
+# The job's `if:` skips ordinary pushes whose head commit was authored
+# by nmg-bot - i.e. the bot's own version-bump commit landing as a push
+# in its own right. Not a correctness requirement (commit-analyzer
+# wouldn't classify a "chore(release): ..." commit as release-worthy
+# anyway, under the conventionalcommits preset's default rules, so this
+# would otherwise just cleanly no-op) - purely to avoid paying for a
+# full npm ci + semantic-release invocation that can only ever conclude
+# "nothing to release" against the exact commit it itself just created.
+# This depends on a commit created via the Git Data API with no custom
+# author/committer (as verified-git-commit.plugin.cjs does) being
+# attributed to the App's bot login in the format "nmg-bot[bot]" - the
+# `log-triggering-commit-author` job below exists so you can confirm
+# that string against a real run's log. If it's ever wrong, the only
+# effect is that this condition never matches, so the job simply runs
+# every time instead of skipping - safe either way.
 
 name: Release
 
@@ -99,19 +61,30 @@ on:
       - 'release/**'
 
 # Prevents two releases on the same branch racing (e.g. a merge and
-# sync-master-to-develop.yaml landing seconds apart). github.ref_name is
-# used instead of github.ref on principle, even though this workflow now
-# only has one trigger (push) so the two happen to agree today: github.ref
-# is the context variable that silently stopped matching the triggering
-# branch once `create` was a second trigger here (see the header comment
-# above), and github.ref_name is the one detect-environment.yaml already
-# relies on for exactly that reason. No reason to reach for the riskier
-# one now that the safer one costs nothing extra.
+# sync-master-to-develop.yaml landing seconds apart). github.ref_name,
+# not github.ref, is the context variable that reliably matches the
+# triggering branch across event types - the same one
+# detect-environment.yaml relies on elsewhere in this repo.
 concurrency:
   group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
+  # Confirms the assumption the `release` job's `if:` below depends on:
+  # that a commit verified-git-commit.plugin.cjs creates via the Git
+  # Data API (no custom author/committer set) is attributed to the
+  # literal login "nmg-bot[bot]". This has to be its own ungated job,
+  # not a step inside `release` - the run that actually needs checking
+  # is exactly the one where `release`'s `if:` evaluates false and that
+  # job never executes at all. Check this job's log after a real
+  # release (triggered by nmg-bot's own version-bump commit) and confirm
+  # the printed value reads 'nmg-bot[bot]' exactly; delete this job once
+  # confirmed.
+  log-triggering-commit-author:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "github.event.head_commit.author.username = '${{ github.event.head_commit.author.username }}'"
+
   release:
     if: github.event.head_commit.author.username != 'nmg-bot[bot]'
     runs-on: ubuntu-latest
