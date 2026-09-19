@@ -146,6 +146,11 @@ git checkout -b release/<version>
 Only bug fixes, documentation, and release-related chores (version bumps,
 changelog) belong on a release branch — no new features.
 
+While a release branch is open, any change that later lands on `master`
+(a hotfix, semantic-release's own version-bump commit, anything) is merged
+into it automatically by `sync-master-to-develop.yaml` — see
+[Starting a hotfix](#starting-a-hotfix) for how.
+
 When the release branch is stable:
 
 1. Open a pull request from `release/<version>` into `master`. Merging tags
@@ -176,11 +181,19 @@ When the fix is ready:
 2. `sync-master-to-develop.yaml` automatically **opens** a pull request
    bringing that merge into `develop` as a regular merge commit, not squash.
    It does **not** merge that PR — a human still reviews and merges it. Do
-   this promptly so the fix is included in future releases. ⚠️ **Caution:**
-   this automation only opens a PR targeting `develop`. If a `release/*`
-   branch is active at the same time, merge the fix into that branch by
-   hand too — the sync PR does not cover it.
-3. Delete the hotfix branch.
+   this promptly so the fix is included in future releases.
+3. The same workflow also **merges `master` directly into every currently
+   open `release/*` branch**, with no pull request and no review gate before
+   the merge lands — `release/*` branches can't receive an incoming PR at
+   all (see [Pull requests](#pull-requests)), so a direct push, done
+   automatically, is what closes the "an in-flight release can't ship
+   without this fix either" gap. If `master` and a release branch have
+   diverged in a way Git can't merge automatically, that branch is skipped
+   and the workflow run fails loudly rather than silently — resolve it the
+   same way you would by hand: check out the release branch, merge or
+   rebase `master`'s changes onto it, resolve the conflict, and push
+   directly.
+4. Delete the hotfix branch.
 
 ---
 
@@ -199,11 +212,13 @@ When the fix is ready:
   collapsed away.
 - Pull requests **into** `release/*` or `hotfix/*` are rejected outright
   by `check-source-branch` — these branches only ever merge *out* (to
-  `master`). Push fixes to them directly instead; see
+`master`). Push fixes to them directly instead; see
   [Starting a release](#starting-a-release) /
-  [Starting a hotfix](#starting-a-hotfix).
+  [Starting a hotfix](#starting-a-hotfix). This is also why keeping an
+  open `release/*` branch in sync with `master` is a direct push rather
+  than a pull request — see [Starting a hotfix](#starting-a-hotfix).
 - Force-pushing is blocked on every branch **except** `feature/*` and
-  `hotfix/*`, which stay open for rebasing or amending your own
+`hotfix/*`, which stay open for rebasing or amending your own
   in-progress work.
 - Keep feature branches short-lived and up to date with `develop` to avoid
   large, conflict-prone merges.
@@ -236,12 +251,15 @@ descriptions (squashing turns the PR title + body into the actual commit
 message — see [Supporting branches](#supporting-branches)), must follow
 [Conventional Commits](https://www.conventionalcommits.org/) as
 configured in `.config/commitlint.config.mjs`, with a custom plugin at
-`.config/signed-off-by-regex.js`.
+`.config/signed-off-by-regex.js`. Pull request titles and descriptions are
+actually checked against `.config/commitlint.pr-message.config.mjs`, a
+thin wrapper around the same config — see the note on `Signed-off-by`
+below for the one rule it changes.
 
 Beyond the standard Conventional Commits format, this project requires:
 
 - A **scope** from a fixed list: `core`, `api`, `ui`, `auth`, `db`, `deps`,
-  `tests`, `config`, `security`, `rebase`.
+`tests`, `config`, `security`, `rebase`.
 - A **subject in the imperative mood** — "add", "update", "fix", not
   "added", "updated", "fixed". Read it as completing "This commit will
   ...".
@@ -266,6 +284,23 @@ signing locally (see
 [GitHub's guide](https://docs.github.com/en/authentication/managing-commit-signature-verification))
 or pushes will be rejected outright, regardless of message content.
 
+ℹ️ **Don't retype `Signed-off-by` into a `feature/*` → `develop` pull
+request description.** If your branch's commit already carries a valid
+`Signed-off-by` trailer, GitHub auto-fills the PR description from that
+commit but strips the trailer out of the auto-filled text — not because
+it's missing, but because GitHub recognises it as a git trailer and
+re-attaches it to the final squash commit automatically from the source
+commit(s), regardless of what the description says. Typing it into the
+description anyway doesn't add coverage (the commit already has it, and
+`preview / commitlint` already lints that commit in full on every push);
+it only creates a second copy, which then shows up duplicated in the
+"Squash and merge" button's editable commit message. This is why
+`.config/commitlint.pr-message.config.mjs` — used to lint the PR title
+and description, see
+[Continuous integration checks](#continuous-integration-checks) — disables
+the `signed-off-by` and `signed-off-by-regex` rules for that check
+specifically; every other rule in it is unchanged.
+
 Example:
 
 ```text
@@ -283,16 +318,16 @@ Signed-off-by: Jane Doe <jane@example.com>
 Pushing to any branch, and opening a pull request into `develop` or
 `master`, trigger automated checks:
 
-| Check                    | Runs on                          | What it checks                                   |
-|--------------------------|----------------------------------|--------------------------------------------------|
-| `preview / commitlint`   | Every push*                      | Latest commit (or range); see [requirements][cm] |
-| `preview / markdownlint` | Every push*                      | Every Markdown file in the repo                  |
-| `preview / cspell`       | Every push*                      | Spelling across the repository                   |
-| `preview / gm-cli-tests` | Every push*                      | Project compiles and tests pass                  |
-| `lint-pr-message`        | feature/* → develop PRs          | PR title/body become the squash commit           |
-| `check-source-branch`    | PRs into 4 branches†             | Source branch is on the allow-list               |
-| `release`                | Push to master/develop/release/* | Runs semantic-release when warranted             |
-| `sync`                   | Push to master                   | Opens master → develop sync PR (no auto-merge)   |
+| Check                    | Runs on                          | What it checks                                     |
+|--------------------------|----------------------------------|----------------------------------------------------|
+| `preview / commitlint`   | Every push*                      | Latest commit (or range); see [requirements][cm]   |
+| `preview / markdownlint` | Every push*                      | Every Markdown file in the repo                    |
+| `preview / cspell`       | Every push*                      | Spelling across the repository                     |
+| `preview / gm-cli-tests` | Every push*                      | Project compiles and tests pass                    |
+| `lint-pr-message`        | feature/* → develop PRs          | Title/body, plus every commit's Signed-off-by      |
+| `check-source-branch`    | PRs into 4 branches†             | Source branch is on the allow-list                 |
+| `release`                | Push to master/develop/release/* | Runs semantic-release when warranted               |
+| `sync`                   | Push to master                   | Opens develop sync PR; merges master into release/*|
 
 [cm]: #commit-message-requirements
 

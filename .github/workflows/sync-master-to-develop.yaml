@@ -1,8 +1,23 @@
 # Whenever master changes for any reason (a release/* merge, a hotfix/*
 # merge, semantic-release's version-bump commit, or anything else), this
-# opens a pull request bringing those changes into develop - so develop
-# can't silently drift behind what's actually shipped, and nobody has to
-# remember a manual "merge back into develop" step.
+# workflow keeps two other places from drifting behind what's actually
+# shipped:
+#
+#   1. Opens a pull request bringing those changes into develop, if one
+#      isn't already open.
+#   2. Merges master directly into every currently open release/*
+#      branch, with no pull request and no review gate before the merge
+#      lands.
+#
+# These use two different mechanisms because release/* branches
+# structurally can't receive an incoming pull request at all -
+# check-source-branch rejects any PR targeting release/*/hotfix/*, since
+# those branches only ever merge OUT to master (see CONTRIBUTING.md). A
+# direct push is how a human keeps a release branch in sync with master
+# today, and isn't otherwise restricted - only master and develop require
+# every change to arrive via PR.
+#
+# ## Develop sync PR
 #
 # This only ever opens the PR - it never merges it. A human still
 # reviews and merges, same as everywhere else in this repo. Once a sync
@@ -10,14 +25,6 @@
 # open PR tracks the live diff between its base and head branches
 # automatically (that's just how GitHub PRs work), so the existing PR
 # already reflects new commits without this workflow touching it again.
-#
-# This only ever syncs master into develop. release/* and hotfix/*
-# branches can't be brought into sync the same way: check-source-branch's
-# whitelist rejects any PR merging INTO a release/*/hotfix/* branch, since
-# those branches only ever merge OUT (to master). Keeping an in-flight
-# release/* or hotfix/* branch current with master is a manual step -
-# push the needed commit directly onto the branch, no PR - see
-# CONTRIBUTING.md's hotfix section.
 #
 # Merge this PR with a regular merge commit, not squash - same reasoning
 # as release/* and hotfix/* merging back into develop (see
@@ -74,8 +81,61 @@
 # `github-token:` input makes the PR's "opened" event authenticate as a
 # real App installation, so pr-title-lint.yaml and branch-protection.yaml
 # run immediately instead of sitting on a stuck approval every sync.
+#
+# ## Direct merge into open release/* branches
+#
+# There is no human review gate here - that's the deliberate tradeoff for
+# closing the "an in-flight release can't ship without a fix that landed
+# on master after the branch was cut" gap without a human approving every
+# master push. If that tradeoff ever stops being acceptable, review can
+# move back in front of this merge by returning to the manual step this
+# replaces: check out the release branch and merge master's changes onto
+# it by hand.
+#
+# A plain `git push` of a normal local merge commit to the release branch
+# would be rejected outright: every commit, on every branch, must be
+# cryptographically signed (see CONTRIBUTING.md), and a commit created
+# locally in this job has no signing key attached. Instead, the actual
+# commit that lands on the release branch is created through the Git
+# Data API with the merge's tree and both branches' tip commits as
+# parents, and the branch's ref is updated through the API too - the
+# same technique release.config.js's verified-git-commit.plugin.cjs
+# plugin uses for its own version-bump commit, and for the same reason:
+# GitHub signs a commit it creates itself through that API on nmg-bot's
+# behalf, satisfying the signed-commit requirement without a real
+# signing key in CI.
+#
+# The Git Data API's create-commit call only accepts a tree whose
+# objects already exist in the GitHub-hosted repository - a tree
+# computed purely by a local `git merge` doesn't qualify, since its
+# content only exists in this job's local checkout until something
+# uploads it. The step below gets it there by committing the merge
+# locally (this local commit's own SHA and message are discardable - all
+# that matters is its tree) and pushing that commit to a throwaway ref
+# outside any protected branch pattern (`refs/sync-tmp/<branch>`), which
+# uploads the tree and any blobs it introduces without being subject to
+# the signed-commit requirement that would reject an ordinary push to
+# the release branch itself. Once that tree exists on GitHub, the real,
+# signed commit is created by the Git Data API call referencing it, the
+# release branch's ref is updated to point at that commit, and the
+# temporary ref is deleted - it was only ever a transport mechanism.
+#
+# The commit message is built to satisfy the same
+# .config/commitlint.config.mjs rules preview.yaml's "Lint commit range
+# (release/*)" step checks against every commit already on a release
+# branch: a valid type/scope/subject, a body of at least 10 characters,
+# a references footer, and a Signed-off-by trailer - the same reasoning
+# and the same nmg-bot address as the develop sync PR's body above.
+#
+# A real merge conflict between master and a release branch can't be
+# resolved automatically. When one occurs, that branch's merge is
+# aborted before anything is written, and the job fails loudly (visible
+# in the Actions run) rather than silently skipping it. The fix is the
+# same manual step this automation otherwise replaces: check out the
+# release branch, merge or rebase master's changes onto it by hand,
+# resolve the conflict, and push directly.
 
-name: Sync Master to Develop
+name: Sync Master to Develop and Release Branches
 
 on:
   push:
@@ -94,6 +154,11 @@ jobs:
         with:
           client-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Open sync PR if one isn't already open
         uses: actions/github-script@v9
@@ -137,3 +202,75 @@ jobs:
             });
 
             core.info(`Opened sync PR #${pr.data.number}`);
+
+      - name: Merge master into every open release/* branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+
+          master_sha="$(git rev-parse origin/master)"
+          failures=0
+
+          for ref in $(git for-each-ref --format='%(refname:short)' 'refs/remotes/origin/release/*'); do
+            branch="${ref#origin/}"
+            branch_sha="$(git rev-parse "$ref")"
+
+            if git merge-base --is-ancestor "$master_sha" "$branch_sha"; then
+              echo "$branch already contains master's tip - nothing to do."
+              continue
+            fi
+
+            echo "Merging master into $branch..."
+            git checkout --quiet --detach "$ref"
+
+            if ! git -c user.name="nmg-bot[bot]" -c user.email="nmg-bot[bot]@users.noreply.github.com" merge --no-ff --no-edit "$master_sha"; then
+              echo "::error::Merge conflict bringing master into $branch - resolve it by hand: check out the branch, merge or rebase master onto it, and push directly."
+              git merge --abort
+              failures=1
+              continue
+            fi
+
+            # This local commit's own SHA/message are discarded - see the
+            # header comment above. Pushing it to a throwaway ref uploads
+            # its tree (and any new blobs) to GitHub without touching the
+            # release branch itself.
+            tmp_ref="refs/sync-tmp/$branch"
+            tree_sha="$(git rev-parse 'HEAD^{tree}')"
+            git push --quiet origin "HEAD:$tmp_ref"
+
+            message=$(printf '%s\n' \
+              "chore(config): merge master into $branch" \
+              "" \
+              "Description:" \
+              "" \
+              "- Keeps this release branch up to date with master while it's" \
+              "  in flight, so it can't ship without a fix that landed on" \
+              "  master after this branch was cut." \
+              "" \
+              "References #1" \
+              "" \
+              "Signed-off-by: nmg-bot[bot] <nmg-bot[bot]@users.noreply.github.com>")
+
+            commit_sha=$(gh api "repos/${{ github.repository }}/git/commits" \
+              -f message="$message" \
+              -f tree="$tree_sha" \
+              -f "parents[]=$branch_sha" \
+              -f "parents[]=$master_sha" \
+              --jq '.sha')
+
+            gh api "repos/${{ github.repository }}/git/refs/heads/$branch" \
+              -X PATCH -f sha="$commit_sha" -F force=false
+
+            git push --quiet origin --delete "$tmp_ref"
+            git reset --hard "$ref" --quiet
+
+            echo "Updated $branch to $commit_sha"
+          done
+
+          if [ "$failures" -ne 0 ]; then
+            echo "::error::One or more release/* branches could not be merged automatically - see log above."
+            exit 1
+          fi
