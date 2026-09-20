@@ -98,44 +98,180 @@ jobs:
         if: startsWith(github.ref_name, 'release/')
         run: npx commitlint --config ./.config/commitlint.config.mjs --from "$(git merge-base HEAD origin/develop)" --to HEAD
 
+  # Lints every markdown file in the repo against .config/.markdownlint-cli2.jsonc.
+  # Runs unconditionally on every branch this workflow is called for, same
+  # reasoning as gm-cli-tests above: markdown content is meaningful to
+  # check regardless of which branch triggered the push, unlike
+  # commitlint's per-branch logic (which is about commit *messages*, not
+  # file content).
   markdownlint:
-    # TEMPORARILY DISABLED - only commitlint and semantic-release are
-    # meant to actively run right now; every other check in this file
-    # (this job, cspell, gm-cli-tests) is disabled the same way and for
-    # the same reason. Kept as a real (fast) job rather than deleted or
-    # job-level `if: false`'d, because master's branch protection requires
-    # "preview / markdownlint" to pass - skipping the job entirely means
-    # that check never gets reported and PRs hang forever waiting on it.
-    # To re-enable, restore the steps below from git history (this job's
-    # previous, fully-working version) instead of rewriting it from
-    # scratch.
     runs-on: ubuntu-latest
     environment: preview
     steps:
-      - name: markdownlint temporarily disabled
-        run: echo "markdownlint is temporarily disabled - see the comment on this job in preview.yaml."
+      - uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint's
+      # own "Install commitlint" step above.
+      - name: Install markdownlint-cli2
+        run: npm ci
+
+      # Deliberately NOT a bare "." target. markdownlint-cli2 special-cases
+      # a dot-only glob: per its own --help text, "markdownlint-cli2 ."
+      # doesn't mean "this directory tree" - it's mapped to
+      # "markdownlint-cli2 *.{md,markdown}", which only lints markdown
+      # files sitting directly in the current directory, non-recursively.
+      # That means this step has only ever checked root-level files
+      # (README.md, CHANGELOG.md, CONTRIBUTING.md) and never a single
+      # markdown file in any subdirectory, dot or otherwise - confirmed
+      # directly against this tool's own documented behaviour, the same way
+      # cspell's --dot gap below was confirmed.
+      #
+      # "**" (their other suggested alternative for "the whole tree") isn't
+      # right either: markdownlint-cli2 treats every file that glob matches
+      # as a markdown candidate regardless of extension, so it starts
+      # linting .yaml/.js/.json files as if they were markdown. "**/*.md"
+      # is what their own docs recommend for "every markdown file in the
+      # tree" specifically, and - unlike cspell - needs no extra flag to
+      # descend into .github/ or .config/; globby's ** already does that
+      # here.
+      - name: Run markdownlint-cli2
+        run: npx markdownlint-cli2 --config .config/.markdownlint-cli2.jsonc "**/*.md"
+
+  # Spell-checks every file in the repo against .config/cspell.json's
+  # dictionary. Runs unconditionally, same reasoning as markdownlint
+  # above - file content, not commit messages, so branch doesn't matter.
   cspell:
-    # TEMPORARILY DISABLED - see markdownlint's comment above; same
-    # reasoning applies here.
     environment: preview
     runs-on: ubuntu-latest
     steps:
-      - name: cspell temporarily disabled
-        run: echo "cspell is temporarily disabled - see the comment on the markdownlint job in preview.yaml."
+      - uses: actions/checkout@v7
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install cspell
+        run: npm ci
+
+      # --dot is required, not optional. cspell's own glob matching never
+      # descends into dot-directories (.github/, .config/) by default -
+      # confirmed directly: a bare "." target and an explicit "**" target
+      # both skip them identically, so this isn't a "." vs "**" distinction,
+      # it's cspell's baseline glob behaviour either way. Without --dot, this
+      # step has only ever checked non-dot-directory files - confirmed
+      # against this repo's own CI output, which listed exactly 14 files
+      # checked and none from .github/workflows/ or .config/. --dot is the
+      # documented flag for exactly this ("Include files and directories
+      # starting with `.` when matching globs").
+      - name: Run cspell
+        run: npx cspell --config .config/cspell.json . --dot
+
+  # Builds and runs the project's own test suite via the GameMaker CLI
+  # (gm-cli), inside its own container image since that CLI isn't
+  # something the standard ubuntu-latest runner can run directly.
+  #
+  # `needs` the three lint jobs above and only runs if they all pass -
+  # the container pull + compile + Xvfb cycle is the slowest, most
+  # expensive part of this whole workflow, so there's no point spending
+  # that time when a cheap, fast check has already failed and the PR
+  # can't merge anyway.
+  #
+  # This is safe against the "Expected - waiting" trap documented in
+  # deploy.yaml's header comment, even though that trap is also about a
+  # required check not getting a result: that one happens when a
+  # workflow never triggers at all for a given ref, so no check run of
+  # any kind is ever created and the PR waits forever with nothing to
+  # look at. This is different - the job still runs as part of this same
+  # workflow invocation every time, GitHub just marks it "skipped"
+  # instead of executing its steps when `needs` isn't satisfied, and a
+  # skipped required check is treated as passed for merge-gating
+  # purposes (documented GitHub behaviour). So a PR is never left
+  # wondering whether this check is coming - it reports immediately
+  # either way - and the lint job that actually failed is still the one
+  # blocking the merge.
   gm-cli-tests:
-    # TEMPORARILY DISABLED - the container pull + compile + test cycle is
-    # too slow to wait on while iterating on other parts of CI (release.yaml,
-    # branch protection, etc). Kept as a real (fast) job rather than
-    # deleted or job-level `if: false`'d, because master's branch
-    # protection requires "preview / gm-cli-tests" to pass - skipping the
-    # job entirely means that check never gets reported and PRs hang
-    # forever waiting on it. To re-enable, restore the container/steps
-    # below from git history (this job's previous, fully-working version -
-    # compile + Xvfb + retry logic) instead of rewriting it from scratch.
+    needs: [commitlint, markdownlint, cspell]
     runs-on: ubuntu-latest
     environment: preview
+    # gm-cli ships as this container image - `--privileged` is required
+    # by the image itself, not something this workflow adds by choice.
+    container:
+      image: monkeyknuckles/gm-cli:latest
+      options: --privileged
     steps:
-      - name: gm-cli-tests temporarily disabled
-        run: echo "gm-cli-tests is temporarily disabled for faster CI iteration - see the comment on this job in preview.yaml."
+      - uses: actions/checkout@v7
+
+      - run: npm install
+
+      # gm-cli needs a real (virtual) display to run, even headless in
+      # CI - Xvfb provides one. The short sleep gives it a moment to
+      # finish starting before gm-cli tries to use it.
+      #
+      # `|| true` on the gm-cli invocation is deliberate: its own exit
+      # code isn't what decides pass/fail here - the "Evaluate results"
+      # step below does, by scanning the captured output for "[FAIL]"
+      # (see .config/gm-fail.sh) - so a nonzero exit here must not fail
+      # this step before that scan gets a chance to run.
+      - name: Run tests under Xvfb
+        working-directory: ./grid-utility-professional
+        env:
+          DISPLAY: :99
+        run: |
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          sleep 2
+          npx @gamemaker/gm-cli@latest run --verbose 2>&1 | tee test_output.log || true
+
+      - name: Evaluate results
+        run: |
+          chmod +x ./.config/gm-fail.sh
+          ./.config/gm-fail.sh ./grid-utility-professional/test_output.log
+
+  # A compile *sanity check* - `needs: gm-cli-tests` specifically (not the
+  # lint jobs directly), since a project whose own unit tests fail has no
+  # business being checked for compile health either. Transitively, that
+  # also means commitlint/markdownlint/cspell have already passed too,
+  # since gm-cli-tests itself needs all three - same "skipped is treated
+  # as passed" reasoning as gm-cli-tests' own header comment above.
+  #
+  # This is NOT the same thing as producing a distributable build.
+  # `gm-cli compile` has no --output flag at all - it only validates that
+  # the project builds - which is exactly why it's the right command for
+  # a per-push gate rather than `gm-cli package` (which takes
+  # --target/--output and produces a real per-platform artifact). Building
+  # real distributable for every platform this project ships on belongs
+  # in deploy.yaml's `deploy` job instead, matrix across targets, since
+  # that only runs for staging/production - not on every feature-branch
+  # push the way this job does.
+  #
+  # --target linux only for now, matching the platform actually being
+  # developed on. Add more targets (windows/mac/operagx/etc.) as their own
+  # steps, or switch this job to a `strategy: matrix` across targets, once
+  # there's an actual reason to compile-check more than one.
+  #
+  # Unlike gm-cli-tests' "Run tests under Xvfb" step, this doesn't need a
+  # virtual display or the tee + gm-fail.sh log-scraping workaround:
+  # `gm-cli compile` is a batch build step with no GUI/runtime component
+  # to spin up, so its own exit code is the real, reliable pass/fail
+  # signal here - unlike `run`'s exit code, which isn't (see that step's
+  # own comment on why it needed the workaround).
+  gm-cli-compile:
+    needs: gm-cli-tests
+    runs-on: ubuntu-latest
+    environment: preview
+    # gm-cli ships as this container image - `--privileged` is required
+    # by the image itself, not something this workflow adds by choice.
+    container:
+      image: monkeyknuckles/gm-cli:latest
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: npm install
+
+      - name: Compile project (linux)
+        working-directory: ./grid-utility-professional
+        run: npx @gamemaker/gm-cli@latest compile --target linux --verbose

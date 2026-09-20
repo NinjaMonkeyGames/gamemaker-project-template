@@ -19,6 +19,31 @@
 #
 # ## Develop sync PR
 #
+# Before opening (or leaving alone) the PR, this checks every non-merge
+# commit between develop and master's new tip against the same
+# signed-off-by rule pr-title-lint.yaml enforces on the PR itself
+# (commitlint.signed-off-only.config.mjs, merges excluded - see that
+# file's header comment for why merges are excluded). If that check
+# would fail, the job stops right there: no PR is opened, and the
+# "Direct merge into open release/* branches" step below never runs
+# either, so a bad commit on master doesn't also get carried into every
+# in-flight release branch while nobody's looking.
+#
+# This is a deliberate duplicate of a check pr-title-lint.yaml already
+# does. The reason it's worth running twice: once a commit lacking a
+# valid signoff is actually on master, opening the develop PR anyway
+# doesn't give anyone a chance to fix it before it's user-visible - the
+# PR just appears already broken, and master's own history can't be
+# rewritten to get it out of the checked range (this repo's branches are
+# fast-forward-only). Catching it here means the failure shows up as this
+# workflow's own run failing, with a clear reason, instead of as a
+# silently-unmergeable PR someone has to notice and diagnose from
+# scratch. Recovering still means fixing the offending commit by hand
+# (rewriting it via the Git Data API and force-updating the affected
+# ref) - this doesn't remove that need, it just stops the workflow from
+# building more state (a PR, release-branch merges) on top of a master
+# that's already known to be bad.
+#
 # This only ever opens the PR - it never merges it. A human still
 # reviews and merges, same as everywhere else in this repo. Once a sync
 # PR is open, there's nothing to "update" on later pushes to master: an
@@ -159,6 +184,25 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install commitlint
+        run: npm ci
+
+      # See the "Develop sync PR" header comment above for why this runs
+      # before the PR is touched at all, and why merges are excluded.
+      - name: Require every non-merge commit reaching master to have a valid signoff
+        run: |
+          set -euo pipefail
+          from="$(git merge-base HEAD origin/develop)"
+          git rev-list --no-merges --reverse "$from..HEAD" | while read -r sha; do
+            echo "Checking $sha..."
+            git log -1 --format=%B "$sha" > commit-msg.txt
+            npx commitlint --config .config/commitlint.signed-off-only.config.mjs --edit commit-msg.txt
+          done
 
       - name: Open sync PR if one isn't already open
         uses: actions/github-script@v9

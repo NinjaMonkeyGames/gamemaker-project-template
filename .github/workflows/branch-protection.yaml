@@ -41,12 +41,9 @@
 # closes that gap for real instead of relying on the trigger to do it,
 # and means every valid pairing lives in exactly one place to audit.
 #
-# merge_group support: same reasoning as pr-title-lint.yaml - the
-# merge_group event doesn't reliably expose the original PR's source
-# branch, and this isn't integration-sensitive (which branches are allowed
-# to merge where doesn't change based on what else is in the queue), so it
-# was already conclusively answered by the pull_request-triggered run. The
-# merge_group run is a deliberate, documented no-op.
+# develop does not use a merge queue, so this only ever triggers on the
+# PR's own pull_request events - there is no separate merge_group case to
+# account for here.
 
 name: Branch Policy Check
 
@@ -58,19 +55,12 @@ on:
       - develop
       - 'release/**'
       - 'hotfix/**'
-  merge_group:
-    types: [checks_requested]
 
 jobs:
   check-source-branch:
     runs-on: ubuntu-latest
     steps:
-      - name: No-op for merge_group (see file header comment)
-        if: github.event_name == 'merge_group'
-        run: echo "Not integration-sensitive; already verified when this PR was opened. Nothing to re-check here."
-
       - name: Enforce allowed source branch for the target
-        if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.ref }}
           HEAD: ${{ github.event.pull_request.head.ref }}
