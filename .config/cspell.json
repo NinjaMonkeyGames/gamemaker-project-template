@@ -204,10 +204,12 @@
   "version": "0.2",
   "words": [
     "commitlint",
+    "freeform",
     "GAMEMAKER",
     "Gitflow",
     "linted",
     "monkeyknuckles",
-    "ninjamonkeygames"
+    "ninjamonkeygames",
+    "scannable"
   ]
 }

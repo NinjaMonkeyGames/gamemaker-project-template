@@ -1,9 +1,9 @@
 {
   "author": "NinjaMonkeyGames",
   "bugs": {
-    "url": "https://github.com/NinjaMonkeyGames/sandbox-test/issues"
+    "url": "https://github.com/NinjaMonkeyGames/gamemaker-project-template/issues"
   },
-  "description": "sandbox-test",
+  "description": "gamemaker-project-template",
   "devDependencies": {
     "@commitlint/config-conventional": "^21.2.2",
     "@eslint/js": "^10.0.1",
@@ -30,7 +30,7 @@
     "shellcheck": "^1.1.0",
     "typescript-eslint": "^8.70.0"
   },
-  "homepage": "https://github.com/NinjaMonkeyGames/sandbox-test#readme",
+  "homepage": "https://github.com/NinjaMonkeyGames/gamemaker-project-template#readme",
   "keywords": [
     "template",
     "gamemaker",
@@ -42,7 +42,7 @@
   "name": "sandbox-test",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NinjaMonkeyGames/sandbox-test.git"
+    "url": "git+https://github.com/NinjaMonkeyGames/gamemaker-project-template.git"
   },
   "scripts": {
     "lint:eslint": "eslint --config .config/eslint.config.js .",
