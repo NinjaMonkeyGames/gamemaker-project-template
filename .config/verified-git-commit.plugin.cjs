@@ -79,10 +79,21 @@ const DEFAULT_ASSETS = [
 
 const DEFAULT_MESSAGE = 'chore(release): ${nextRelease.version}\n\n${nextRelease.notes}';
 
+/**
+ * Executes a git command synchronously and returns the trimmed output.
+ * @param {string[]} args - Arguments to pass to the git executable.
+ * @param {string} cwd - Current working directory where the command should run.
+ * @returns {string} The trimmed stdout from the git command.
+ */
 function git(args, cwd) {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 }
 
+/**
+ * Retrieves the GitHub authentication token from environment variables.
+ * @returns {string} The GitHub token (`GITHUB_TOKEN` or `GH_TOKEN`).
+ * @throws {Error} If neither token is present in the environment.
+ */
 function getToken() {
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
   if (!token) {
@@ -93,6 +104,11 @@ function getToken() {
   return token;
 }
 
+/**
+ * Parses the repository owner and name from the `GITHUB_REPOSITORY` environment variable.
+ * @returns {{ owner: string, name: string }} An object containing the repository owner and name.
+ * @throws {Error} If `GITHUB_REPOSITORY` is missing or improperly formatted.
+ */
 function getRepo() {
   // Set automatically inside GitHub Actions, as "owner/repo".
   const repo = process.env.GITHUB_REPOSITORY;
@@ -105,6 +121,15 @@ function getRepo() {
   return { owner, name };
 }
 
+/**
+ * Makes an authenticated HTTP request to the GitHub REST API.
+ * @param {string} method - HTTP method (e.g., 'GET', 'POST', 'PATCH').
+ * @param {string} urlPath - API endpoint path (relative to `GITHUB_API`).
+ * @param {string} token - GitHub authentication token.
+ * @param {Record<string, unknown>} [body] - Optional request body payload to send as JSON.
+ * @returns {Promise<Record<string, unknown>>} The parsed JSON response from the API.
+ * @throws {Error} If the HTTP response status indicates failure.
+ */
 async function api(method, urlPath, token, body) {
   const res = await fetch(`${GITHUB_API}${urlPath}`, {
     method,
@@ -125,12 +150,24 @@ async function api(method, urlPath, token, body) {
   return res.json();
 }
 
+/**
+ * Safely retrieves a nested property value from an object using a dotted path string.
+ * @param {object} obj - The target object to query.
+ * @param {string} dottedPath - Dotted path to the property (e.g., 'nextRelease.version').
+ * @returns {any} The resolved value, or undefined/null if not found.
+ */
 function get(obj, dottedPath) {
   return dottedPath
     .split('.')
     .reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
 }
 
+/**
+ * Renders a commit message template by replacing `${dotted.path}` expressions with context values.
+ * @param {string} template - The template string containing placeholders.
+ * @param {object} context - The context object containing release data.
+ * @returns {string} The rendered commit message.
+ */
 function renderMessage(template, context) {
   return template.replace(/\$\{\s*([\w.]+)\s*\}/g, (_match, expr) => {
     const value = get(context, expr);
@@ -138,6 +175,18 @@ function renderMessage(template, context) {
   });
 }
 
+/**
+ * Semantic-release `prepare` lifecycle hook. Creates a verified release commit
+ * directly via the GitHub Git Data API, bypassing local git wire protocol limitations.
+ * @param {object} pluginConfig - Configuration options passed to the plugin.
+ * @param {string[]} [pluginConfig.assets] - Array of file paths to commit.
+ * @param {string} [pluginConfig.message] - Custom commit message template.
+ * @param {object} context - Semantic-release context object.
+ * @param {string} context.cwd - Current working directory.
+ * @param {object} context.branch - Current branch information.
+ * @param {object} context.logger - Logger interface provided by semantic-release.
+ * @returns {Promise<void>}
+ */
 async function prepare(pluginConfig, context) {
   const { cwd, branch, logger } = context;
   const assets = pluginConfig.assets || DEFAULT_ASSETS;

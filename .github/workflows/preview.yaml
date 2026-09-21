@@ -170,11 +170,72 @@ jobs:
       - name: Run cspell
         run: npx cspell --config .config/cspell.json . --dot
 
+  # Lints every shell script in the repo against shellcheck's own default
+  # rules (no repo-specific .shellcheckrc yet - add one if a rule ever
+  # needs to be turned off deliberately, rather than just living with a
+  # warning forever). Runs unconditionally, same reasoning as markdownlint
+  # and cspell above - script content, not commit messages, so branch
+  # doesn't matter.
+  #
+  # `find`, not a glob, and explicitly excluding node_modules. This is the
+  # same underlying problem markdownlint's and cspell's own header comments
+  # above describe, just showing up a third time in a third tool: a plain
+  # shell glob like `**/*.sh` does not descend into dot-directories by
+  # default either, confirmed directly here too - even with
+  # `shopt -s globstar` turned on, `**/*.sh` never matched
+  # .config/gm-fail.sh, so a glob-based version of this step would have
+  # silently never checked that file, the exact gap that turned up twice
+  # already for other tools this session. `find` recurses into
+  # dot-directories with no special-casing needed, so it's used here
+  # instead of a glob rather than adding a fourth ad hoc workaround.
+  shellcheck:
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint's own
+      # "Install commitlint" step above. The "shellcheck" npm package is a
+      # thin wrapper that downloads the real (Haskell) ShellCheck binary
+      # for the current platform on install and exposes it as `shellcheck`
+      # - `npx shellcheck` below runs that real binary, not a
+      # JS reimplementation of it.
+      - name: Install shellcheck
+        run: npm ci
+
+      - name: Run shellcheck
+        run: find . -name "*.sh" -not -path "./node_modules/*" -print0 | xargs -0 npx shellcheck
+
+  # Lints JS/TS/JSON against .config/eslint.config.js. Runs unconditionally,
+  # same reasoning as the other content-based lint jobs above - branch
+  # doesn't matter, only file content does.
+  eslint:
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint's own
+      # "Install commitlint" step above.
+      - name: Install eslint
+        run: npm ci
+
+      - name: Run eslint
+        run: npx eslint --config .config/eslint.config.js .
+
   # Builds and runs the project's own test suite via the GameMaker CLI
   # (gm-cli), inside its own container image since that CLI isn't
   # something the standard ubuntu-latest runner can run directly.
   #
-  # `needs` the three lint jobs above and only runs if they all pass -
+  # `needs` the five lint jobs above and only runs if they all pass -
   # the container pull + compile + Xvfb cycle is the slowest, most
   # expensive part of this whole workflow, so there's no point spending
   # that time when a cheap, fast check has already failed and the PR
@@ -194,7 +255,7 @@ jobs:
   # either way - and the lint job that actually failed is still the one
   # blocking the merge.
   gm-cli-tests:
-    needs: [commitlint, markdownlint, cspell]
+    needs: [commitlint, markdownlint, cspell, shellcheck, eslint]
     runs-on: ubuntu-latest
     environment: preview
     # gm-cli ships as this container image - `--privileged` is required
@@ -242,8 +303,8 @@ jobs:
   # the project builds - which is exactly why it's the right command for
   # a per-push gate rather than `gm-cli package` (which takes
   # --target/--output and produces a real per-platform artifact). Building
-  # real distributable for every platform this project ships on belongs
-  # in deploy.yaml's `deploy` job instead, matrix across targets, since
+  # real distributables for every platform this project ships on belongs
+  # in deploy.yaml's `deploy` job instead, matrixed across targets, since
   # that only runs for staging/production - not on every feature-branch
   # push the way this job does.
   #

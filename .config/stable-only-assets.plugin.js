@@ -57,13 +57,35 @@ import * as npm from '@semantic-release/npm';
 
 const NPM_CONFIG = { npmPublish: false };
 
-export async function verifyConditions(pluginConfig, context) {
+/**
+ * Verifies conditions for both changelog and npm plugins.
+ * @param {Record<string, unknown>} pluginConfig - Configuration options for the plugin.
+ * @param {object} context - Semantic-release context object.
+ * @returns {Promise<void>} A promise that resolves when verification is complete.
+ */
+export async function verifyConditions(pluginConfig, context) 
+{
   await changelog.verifyConditions(pluginConfig, context);
   await npm.verifyConditions(NPM_CONFIG, context);
 }
 
-export async function prepare(pluginConfig, context) {
-  if (context.branch.prerelease) {
+/**
+ * Prepares the release by updating assets (package.json and CHANGELOG.md)
+ * only on stable (non-prerelease) branches.
+ * @param {Record<string, unknown>} pluginConfig - Configuration options for the plugin.
+ * @param {object} context - Semantic-release context object.
+ * @param {object} context.branch - Branch details currently being released.
+ * @param {boolean} context.branch.prerelease - Indicates whether the current branch is a prerelease.
+ * @param {string} context.branch.name - Name of the branch.
+ * @param {object} context.logger - Logger interface provided by semantic-release.
+ * @param {object} context.nextRelease - Details about the next release.
+ * @param {string} context.nextRelease.channel - Channel name for the next release.
+ * @returns {Promise<void>} A promise that resolves when the prepare step finishes.
+ */
+export async function prepare(pluginConfig, context) 
+{
+  if (context.branch.prerelease) 
+  {
     context.logger.log(
       'stable-only-assets: skipping package.json/CHANGELOG.md changes on prerelease branch "%s" (channel "%s") - only master writes these, so they never conflict when this branch is later synced back into develop.',
       context.branch.name,
@@ -76,10 +98,24 @@ export async function prepare(pluginConfig, context) {
   await npm.prepare(NPM_CONFIG, context);
 }
 
-export async function publish(pluginConfig, context) {
+/**
+ * Publishes the package via the npm plugin.
+ * @param {Record<string, unknown>} pluginConfig - Configuration options for the plugin.
+ * @param {object} context - Semantic-release context object.
+ * @returns {Promise<unknown>} A promise that resolves with the publish result.
+ */
+export async function publish(pluginConfig, context) 
+{
   return npm.publish(NPM_CONFIG, context);
 }
 
-export async function addChannel(pluginConfig, context) {
+/**
+ * Adds a channel for the package via the npm plugin.
+ * @param {Record<string, unknown>} pluginConfig - Configuration options for the plugin.
+ * @param {object} context - Semantic-release context object.
+ * @returns {Promise<unknown>} A promise that resolves when the channel is added.
+ */
+export async function addChannel(pluginConfig, context) 
+{
   return npm.addChannel(NPM_CONFIG, context);
 }

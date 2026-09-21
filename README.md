@@ -23,6 +23,7 @@
       - [VSC (Visual Studio Codium)](#vsc-visual-studio-codium)
       - [VSC EXTENSIONS](#vsc-extensions)
     - [CI TOOLS](#ci-tools)
+    - [CI TOOL PLUGINS](#ci-tool-plugins)
     - [SUPPORTING TOOLS](#supporting-tools)
   - [INSTALLATION](#installation)
   - [USAGE](#usage)
@@ -105,6 +106,7 @@ OS: Linux x64 6.12.105+deb13-amd64
 | streetsidesoftware.code-spell-checker                             | 4.7.3     |
 | streetsidesoftware.code-spell-checker-cspell-bundled-dictionaries | 2.0.15    |
 | github.vscode-github-actions                                      | 0.32.3    |
+| dbaeumer.vscode-eslint                                            | 3.0.34    |
 | yzhang.markdown-all-in-one                                        | 3.6.2     |
 | davidanson.vscode-markdownlint                                    | 0.62.1    |
 | redhat.vscode-yaml                                                | 1.24.0    |
@@ -117,12 +119,43 @@ OS: Linux x64 6.12.105+deb13-amd64
 |---------------------------------------|-----------------------------------|
 | npm                                   | 11.18.0                           |
 | cSpell                                | 10.3.0                            |
+| eslint                                | 10.11.0                           |
 | Markdownlint-Cli2                     | 0.23.0                            |
 | Markdownlint                          | 0.41.0                            |
 | Commitlint                            | 21.2.2                            |
 | Commitlint config-conventional        | 21.2.2                            |
 | gm-cli                                | 2.3.0                             |
 | cSpell                                | 10.3.0                            |
+| semantic-release                      | 25.0.9                            |
+
+    "@semantic-release/changelog": "^7.0.0",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/github": "^12.0.9",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.1",
+
+    "eslint": "^10.11.0",
+    "eslint-plugin-jsdoc": "^63.3.3",
+    "eslint-plugin-json-schema-validator": "^6.3.1",
+    "eslint-plugin-jsonc": "^3.4.2",
+    "globals": "^17.12.0",
+    "i": "^0.3.7",
+    "jsonc-eslint-parser": "^3.3.0",
+
+### CI TOOL PLUGINS
+
+| Tool                                      | Version                           |
+|-------------------------------------------|-----------------------------------|
+| @semantic-release/changelog               | 7.0.0                             |
+| @semantic-release/commit-analyzer         | 13.0.1                            |
+| @semantic-release/github                  | 12.0.9                            |
+| @semantic-release/npm                     | 13.1.5                            |
+| @semantic-release/release-notes-generator | 14.1.1                            |
+| eslint-plugin-jsdoc                       | 63.3.3                            |
+| eslint-plugin-json-schema-validator       | 6.3.1                             |
+| eslint-plugin-jsonc                       | 3.4.2                             |
+| jsonc-eslint-parser                       | 3.3.0                             |
+| globals                                   | 0.3.7                             |
 
 ### SUPPORTING TOOLS
 

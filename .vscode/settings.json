@@ -7,7 +7,7 @@
 // 2. Add a visible ruler to the IDE.
 // 3. Format settings.
 // 4. Confirmation settings.
-// 5. Markdown settings.
+// 5. Mardown settings.
 // 6. Include otherwise hidden folders in the file tree view.
 // 7. Include otherwise excluded files in the project file search.
 // 8. Start Terminal in Bash.
@@ -15,88 +15,122 @@
 // 10. Set commitlint config path.
 // 11. Markdown settings.
 // 12. Set cspell config path.
+// 13. Set eslint config path.
 {
 // Markdown Settings
 
-"[markdown]":
+  "[markdown]":
   {
-"editor.defaultFormatter": "yzhang.markdown-all-in-one",
-"editor.formatOnSave": true
+    "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+    "editor.formatOnSave": true
   },
 
-// Set commitlint config path
+  // Set cspell config path
+  //
+  // The Code Spell Checker extension only auto-discovers a cspell config
+  // at the workspace root (or alongside whatever file is open) - it never
+  // looks inside .config/ on its own, which is why it was flagging things
+  // the CI job and a `--config .config/cspell.json` local run never did:
+  // it wasn't reading this project's dictionary at all. `cSpell.import`
+  // merges the real config in explicitly, same pattern as
+  // commitlint.config.file and markdownlint.configFile below.
+  //
+  // The leading "./" is required, not stylistic: cspell's import resolver
+  // treats a path with no "./"/"../" prefix as a bare module specifier
+  // (the same rule Node uses for `require()`) and tries to resolve it as
+  // a package rather than a plain relative file path - dropping the dot
+  // off ".config" in the process. Without it, this fails with something
+  // like "Failed to resolve configuration file: config/cspell.json".
 
-"commitlint.config.file": ".config/commitlint.config.mjs",
+  "cSpell.import": ["./.config/cspell.json"],
 
-// Set cspell config path
-//
-// The Code Spell Checker extension only auto-discovers a cspell config
-// at the workspace root (or alongside whatever file is open) - it never
-// looks inside .config/ on its own, which is why it was flagging things
-// the CI job and a `--config .config/cspell.json` local run never did:
-// it wasn't reading this project's dictionary at all. `cSpell.import`
-// merges the real config in explicitly, same pattern as
-// commitlint.config.file and markdownlint.configFile below.
-//
-// The leading "./" is required, not stylistic: cspell's import resolver
-// treats a path with no "./"/"../" prefix as a bare module specifier
-// (the same rule Node uses for `require()`) and tries to resolve it as
-// a package rather than a plain relative file path - dropping the dot
-// off ".config" in the process. Without it, this fails with something
-// like "Failed to resolve configuration file: config/cspell.json".
 
-"cSpell.import": ["./.config/cspell.json"],
+  // Set commitlint config path
 
-"editor.formatOnSave": true, // Automatically format files when saving
-"editor.formatOnType": true, // Automatically format code as you type
+  "commitlint.config.file": ".config/commitlint.config.mjs",
 
-// Add a Visible Ruler to the IDE
+  "editor.formatOnSave": true, // Automatically format files when saving
+  "editor.formatOnType": true, // Automatically format code as you type
 
-"editor.rulers":
+  // Add a Visible Ruler to the IDE
+
+  "editor.rulers":
   [
-120 // set ruler width to 120 characters
+    120 // set ruler width to 120 characters
   ],
 
-"editor.wordWrap": "wordWrapColumn", // Automatically wrap lines of text
-"editor.wordWrapColumn": 120, // Set the wrap column to 120 characters
+  "editor.wordWrap": "wordWrapColumn", // Automatically wrap lines of text
+  "editor.wordWrapColumn": 120, // Set the wrap column to 120 characters
 
-// Format Settings
+  // Format Settings
 
-"editor.wrappingIndent": "same", // Keep indentation level of wrapped lines
+  "editor.wrappingIndent": "same", // Keep indentation level of wrapped lines
 
-// Confirmation Settings
+  // Set eslint config path
+  //
+  // Same shape of problem as commitlint.config.file/cSpell.import above:
+  // without this, the extension asks ESLint's flat-config loader to
+  // auto-discover eslint.config.js by searching upward from the file being
+  // linted, which never looks inside .config/ on its own - the same
+  // auto-discovery gap as the other tools, surfacing as "Could not find
+  // config file" instead of a silent fallback to bundled defaults.
+  // eslint.options is passed straight through to the same Node.js ESLint
+  // API a CLI run uses (overrideConfigFile is that API's own option name,
+  // not a VS Code invention), and no leading "./" is needed here, unlike
+  // cSpell.import - this isn't resolved through a bare-module-specifier
+  // import step, so a plain relative path (the same style as
+  // commitlint.config.file/markdownlint.configFile) is fine on its own.
+  //
+  // On its own isn't enough, though - overrideConfigFile is resolved
+  // relative to whatever working directory the extension decides to use
+  // for a given file, and that's a separate setting (eslint.workingDirectories)
+  // which defaults to `[{ "mode": "location" }]`: pick a working directory
+  // per file rather than always the workspace root. For a file that
+  // happens to live inside .config/ itself (.markdownlint-cli2.jsonc, since
+  // this eslint config also covers JSON/JSONC), that default lands on
+  // .config/ as the working directory, so the relative
+  // ".config/eslint.config.js" path doubles up into
+  // ".config/.config/eslint.config.js" - the exact same doubling bug as
+  // running eslint from inside .config/ on the command line, just
+  // triggered by which file is being linted rather than which directory a
+  // terminal happens to be in. Pinning workingDirectories to the workspace
+  // root for every file removes the ambiguity outright.
 
-"explorer.confirmDelete": false, // Prevents prompt when deleting files
-"explorer.confirmDragAndDrop": false, // Prevents prompt when moving files
-"explorer.excludeGitIgnore": false, // Prevent VS Code from hiding gitignored files/folders
-"files.autoSave": "afterDelay", // All file changes will be saved periodically
-"files.autoSaveDelay": 1000, // Set autosave delay for 1000 milliseconds
-"files.eol": "\n", // Force all new files to be in LF format opposed to CRLF
+  "eslint.options": { "overrideConfigFile": ".config/eslint.config.js" },
+  "eslint.workingDirectories": ["."],
+  // Confirmation Settings
 
-// Include Otherwise Hidden Folders In The File Tree View
+  "explorer.confirmDelete": false, // Prevents prompt when deleting files
+  "explorer.confirmDragAndDrop": false, // Prevents prompt when moving files
+  "explorer.excludeGitIgnore": false, // Prevent VS Code from hiding gitignored files/folders
+  "files.autoSave": "afterDelay", // All file changes will be saved periodically
+  "files.autoSaveDelay": 1000, // Set autosave delay for 1000 milliseconds
+  "files.eol": "\n", // Force all new files to be in LF format opposed to CRLF
 
-"files.exclude":
+  // Include Otherwise Hidden Folders In The File Tree View
+
+  "files.exclude":
   {
-"**/.git": false, // Show .git folder
-"**/node_modules": false // Show node_modules
+    "**/.git": false, // Show .git folder
+    "**/node_modules": false // Show node_modules
   },
 
-// Automatically format JSON files on save
+  // Automatically format JSON files on save
 
-"json.format.enable": false,
+  "json.format.enable": false,
 
-"markdown.extension.toc.updateOnSave": true, // Automatically update the TOC when saving markdown files
-"markdownlint.configFile": ".config/.markdownlint-cli2.jsonc", // Set markdownlint config path
+  "markdown.extension.toc.updateOnSave": true, // Automatically update the TOC when saving markdown files
+  "markdownlint.configFile": ".config/.markdownlint-cli2.jsonc", // Set markdownlint config path
 
-// Include Otherwise Excluded Files In Project File Search
+  // Include Otherwise Excluded Files In Project File Search
 
-"search.exclude":
+  "search.exclude":
   {
-"**/.git": false, // Include (Exclude) .git folder
-"**/node_modules": false // Include (Exclude) node_modules folder
+    "**/.git": false, // Include (Exclude) .git folder
+    "**/node_modules": false // Include (Exclude) node_modules folder
   },
 
-// Start Terminal in Bash
+  // Start Terminal in Bash
 
-"terminal.integrated.defaultProfile.linux": "bash"
+  "terminal.integrated.defaultProfile.linux": "bash"
 }
