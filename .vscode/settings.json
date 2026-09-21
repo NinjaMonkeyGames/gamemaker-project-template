@@ -6,16 +6,17 @@
 // 1. Automatic actions.
 // 2. Add a visible ruler to the IDE.
 // 3. Format settings.
-// 4. Confirmation settings.
-// 5. Mardown settings.
-// 6. Include otherwise hidden folders in the file tree view.
-// 7. Include otherwise excluded files in the project file search.
-// 8. Start Terminal in Bash.
-// 9. Automatically format JSON files on save.
-// 10. Set commitlint config path.
-// 11. Markdown settings.
-// 12. Set cspell config path.
-// 13. Set eslint config path.
+// 4. Set eslint config path.
+// 5. Confirmation settings.
+// 6. Markdown settings.
+// 7. Set cspell config path.
+// 8. Include otherwise hidden folders in the file tree view.
+// 9. Include otherwise excluded files in the project file search.
+// 10. Start Terminal in Bash.
+// 11. Automatically format JSON files on save.
+// 12. Set commitlint config path.
+// 13. Markdown settings.
+
 {
 // Markdown Settings
 
@@ -26,21 +27,6 @@
   },
 
   // Set cspell config path
-  //
-  // The Code Spell Checker extension only auto-discovers a cspell config
-  // at the workspace root (or alongside whatever file is open) - it never
-  // looks inside .config/ on its own, which is why it was flagging things
-  // the CI job and a `--config .config/cspell.json` local run never did:
-  // it wasn't reading this project's dictionary at all. `cSpell.import`
-  // merges the real config in explicitly, same pattern as
-  // commitlint.config.file and markdownlint.configFile below.
-  //
-  // The leading "./" is required, not stylistic: cspell's import resolver
-  // treats a path with no "./"/"../" prefix as a bare module specifier
-  // (the same rule Node uses for `require()`) and tries to resolve it as
-  // a package rather than a plain relative file path - dropping the dot
-  // off ".config" in the process. Without it, this fails with something
-  // like "Failed to resolve configuration file: config/cspell.json".
 
   "cSpell.import": ["./.config/cspell.json"],
 
@@ -67,34 +53,6 @@
   "editor.wrappingIndent": "same", // Keep indentation level of wrapped lines
 
   // Set eslint config path
-  //
-  // Same shape of problem as commitlint.config.file/cSpell.import above:
-  // without this, the extension asks ESLint's flat-config loader to
-  // auto-discover eslint.config.js by searching upward from the file being
-  // linted, which never looks inside .config/ on its own - the same
-  // auto-discovery gap as the other tools, surfacing as "Could not find
-  // config file" instead of a silent fallback to bundled defaults.
-  // eslint.options is passed straight through to the same Node.js ESLint
-  // API a CLI run uses (overrideConfigFile is that API's own option name,
-  // not a VS Code invention), and no leading "./" is needed here, unlike
-  // cSpell.import - this isn't resolved through a bare-module-specifier
-  // import step, so a plain relative path (the same style as
-  // commitlint.config.file/markdownlint.configFile) is fine on its own.
-  //
-  // On its own isn't enough, though - overrideConfigFile is resolved
-  // relative to whatever working directory the extension decides to use
-  // for a given file, and that's a separate setting (eslint.workingDirectories)
-  // which defaults to `[{ "mode": "location" }]`: pick a working directory
-  // per file rather than always the workspace root. For a file that
-  // happens to live inside .config/ itself (.markdownlint-cli2.jsonc, since
-  // this eslint config also covers JSON/JSONC), that default lands on
-  // .config/ as the working directory, so the relative
-  // ".config/eslint.config.js" path doubles up into
-  // ".config/.config/eslint.config.js" - the exact same doubling bug as
-  // running eslint from inside .config/ on the command line, just
-  // triggered by which file is being linted rather than which directory a
-  // terminal happens to be in. Pinning workingDirectories to the workspace
-  // root for every file removes the ambiguity outright.
 
   "eslint.options": { "overrideConfigFile": ".config/eslint.config.js" },
   "eslint.workingDirectories": ["."],
