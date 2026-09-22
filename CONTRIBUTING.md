@@ -343,15 +343,6 @@ push above rather than leaving a PR waiting indefinitely.
 `preview / commitlint` and `preview / markdownlint` also register a
 `preview` GitHub Deployment for the commit.
 
-🚨 **Warning:** do **not** add a "Require deployments to succeed: preview"
-branch protection rule on `develop` — this was tried and it breaks
-GitHub's auto-merge feature outright ("Failed enabling auto-merge for
-pull request"), even when every check is genuinely passing. It's also
-redundant: the jobs that create the `preview` deployment are the same
-jobs already enforced as required status checks above, so the rule adds
-no protection that isn't already there. Require the status checks
-themselves, not the deployment.
-
 ---
 
 ## Code comment style
@@ -368,9 +359,9 @@ keeps quoting consistent between prose and code.
 
 Author: Daniel Mallett (Monkey Knuckles)
 
-If you have any problems with the repository or have any suggestions please contact us at <info@ninjamonkeygames.com>.
+If you have any problems with the repository or have any suggestions please contact us at <info@NinjaMonkeyGames.com>.
 
-You may also contact us via our [website](https://ninjamonkeygames.com).
+You may also contact us via our [website](https://NinjaMonkeyGames.com).
 
 Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/grid-utility-professional/issues) on
 GitHub.

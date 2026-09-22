@@ -4,13 +4,13 @@
 [![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 ![Signed Commits](https://img.shields.io/badge/commits-signed-blue.svg)
 ![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)
-![GitHub Release](https://img.shields.io/github/v/release/NinjaMonkeyGames/gamemaker-project-template)
+![GitHub Release](https://img.shields.io/github/v/release/NinjaMonkeyGames/sandbox-test)
 <!-- markdownlint-enable MD013 -->
 ---
 
 ## TABLE OF CONTENTS
 
-- [GAMEMAKER PROJECT TEMPLATE](#gamemaker-project-template)
+- [GAMEMAKER PROJECT TEMPLATE](#sandbox-test)
   - [TABLE OF CONTENTS](#table-of-contents)
   - [SUMMERY DESCRIPTION](#summery-description)
   - [WHAT IS THE PURPOSE OF THIS PROJECT ?](#what-is-the-purpose-of-this-project-)
@@ -195,9 +195,9 @@ There are currently no known limitations or bugs...
 
 Author: Daniel Mallett (Monkey Knuckles)
 
-If you have any problems with the repository or have any suggestions please contact us at <info@ninjamonkeygames.com>.
+If you have any problems with the repository or have any suggestions please contact us at <info@NinjaMonkeyGames.com>.
 
-You may also contact us via our [website](https://ninjamonkeygames.com).
+You may also contact us via our [website](https://NinjaMonkeyGames.com).
 
 Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/grid-utility-professional/issues) on
 GitHub.
