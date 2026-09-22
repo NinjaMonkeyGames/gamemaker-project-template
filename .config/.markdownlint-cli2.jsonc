@@ -237,6 +237,7 @@
   [
     "node_modules/**",
     "CHANGELOG.md",
-    ".git/**"
+    ".git/**",
+    "branch-protection-rules/"
   ]
 }

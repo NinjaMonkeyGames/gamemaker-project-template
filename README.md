@@ -4,13 +4,13 @@
 [![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 ![Signed Commits](https://img.shields.io/badge/commits-signed-blue.svg)
 ![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)
-![GitHub Release](https://img.shields.io/github/v/release/NinjaMonkeyGames/sandbox-test)
+![GitHub Release](https://img.shields.io/github/v/release/NinjaMonkeyGames/gamemaker-project-template)
 <!-- markdownlint-enable MD013 -->
 ---
 
 ## TABLE OF CONTENTS
 
-- [GAMEMAKER PROJECT TEMPLATE](#sandbox-test)
+- [GAMEMAKER PROJECT TEMPLATE](#gamemaker-project-template)
   - [TABLE OF CONTENTS](#table-of-contents)
   - [SUMMERY DESCRIPTION](#summery-description)
   - [WHAT IS THE PURPOSE OF THIS PROJECT ?](#what-is-the-purpose-of-this-project-)
