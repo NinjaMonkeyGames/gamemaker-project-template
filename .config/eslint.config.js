@@ -36,6 +36,7 @@ export default [
       '**/build/',
       '**/coverage/',
       'package-lock.json',
+      'branch-protection-rules/',
       ...gitignorePatterns,
       '**/grid-utility-professional/**'
     ],
