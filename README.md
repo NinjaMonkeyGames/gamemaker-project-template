@@ -15,7 +15,6 @@
   - [SUMMERY DESCRIPTION](#summery-description)
   - [WHAT IS THE PURPOSE OF THIS PROJECT ?](#what-is-the-purpose-of-this-project-)
   - [WHO IS THIS REPOSITORY FOR ?](#who-is-this-repository-for-)
-  - [QUICKSTART](#quickstart)
   - [API OVERVIEW](#api-overview)
   - [ENVIRONMENT DEPENDENCY MANIFESTO](#environment-dependency-manifesto)
     - [GAMEMAKER](#gamemaker)
@@ -36,25 +35,20 @@
 
 ## SUMMERY DESCRIPTION
 
-Replace this with a short description of what the project is...
+A complete GameMaker CI workflow template. This can be used as a base for any GameMaker project.
 
 ---
 
 ## WHAT IS THE PURPOSE OF THIS PROJECT ?
 
-The purpose of this project is...
+The purpose of this project is to provide a standard base for GameMaker projects.
 
 ---
 
 ## WHO IS THIS REPOSITORY FOR ?
 
-This project is for anyone who...
-
----
-
-## QUICKSTART
-
-Quickstart information here...
+This template was primarily designed for NinjaMonkeyGames internal use but it has been made available to the public in
+the hope others will help to mature this workflow overtime.
 
 ---
 
@@ -170,10 +164,14 @@ Local tool versions.
 
 ## INSTALLATION
 
-1. Clone the repository.
-2. Open `project-name.yyp` in GameMaker.
-3. Open the demo room.
-4. Run the project using the target platform of your choice.
+1. Generate the repo from the template.
+2. Replace the example GameMaker project.
+3. Set this project's identity.
+4. Local development setup.
+5. Set up the GitHub App credentials.
+6. Set up deployment environments.
+7. Configure branch protection and repository settings.
+8. Verify it actually works.
 
 ## USAGE
 
