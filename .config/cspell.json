@@ -194,6 +194,13 @@
       ]
     },
     {
+      "filename": "CONTRIBUTING.md",
+      "words": [
+        "tsrc"
+
+      ]
+    },
+    {
       "filename": "README.md",
       "words": [
         "dbaeumer",
@@ -203,6 +210,7 @@
   ],
   "version": "0.2",
   "words": [
+    "Allman",
     "commitlint",
     "freeform",
     "GAMEMAKER",
@@ -210,6 +218,7 @@
     "linted",
     "monkeyknuckles",
     "ninjamonkeygames",
-    "scannable"
+    "scannable",
+    "shellcheck"
   ]
 }
