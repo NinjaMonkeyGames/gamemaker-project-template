@@ -3,7 +3,7 @@
   "bugs": {
     "url": "https://github.com/NinjaMonkeyGames/gamemaker-project-template/issues"
   },
-  "description": "sandbox-test",
+  "description": "gamemaker-project-ci-template",
   "devDependencies": {
     "@commitlint/config-conventional": "^21.2.2",
     "@eslint/js": "^10.0.1",
