@@ -9,110 +9,56 @@
 # release/* and hotfix/* BOTH also trigger the preview job, even though
 # they resolve to the "staging" environment, not "preview". Reasoning:
 # a hotfix branches straight from master and skips develop entirely, so
-# its commits never went through the feature/* -> preview pipeline at
-# all; a release branch's constituent feature commits mostly did (as
+# its commits never go through the feature/* -> preview pipeline at all;
+# a release branch's constituent feature commits mostly did (as
 # feature/* branches, before being squashed into develop), but any commit
 # made DIRECTLY on the release branch itself (version bumps, last-minute
-# bug fixes - exactly what CONTRIBUTING.md says belongs there) never did
-# either. Without this, commitlint/cspell/markdownlint/gm-cli-tests would
-# never run against release/* or hotfix/* pushes at all.
+# bug fixes - exactly what CONTRIBUTING.md says belongs there) never
+# does either. Without this, commitlint/cspell/markdownlint/gm-cli-tests
+# would never run against release/* or hotfix/* pushes at all - and
+# master's own branch protection requires preview / commitlint,
+# preview / cspell, preview / markdownlint, and preview / gm-cli-tests to
+# pass for both release/* and hotfix/* merges, so those PRs need the
+# environment resolved to "preview" here specifically to have anything to
+# check against.
 #
-# This isn't optional: master's own branch protection requires
-# preview / commitlint, preview / cspell, preview / markdownlint, and
-# preview / gm-cli-tests to pass for BOTH release/* and hotfix/* merges.
-# Before this fix, neither covered environment resolved to "preview", so
-# the preview job was skipped outright on every release/hotfix push -
-# every release/hotfix -> master PR sat permanently on "Expected -
-# waiting for status to be reported", since the checks that produce them
-# literally never ran.
+# `create` fires in addition to `push` so that a brand-new branch (or a
+# release tag) always produces a run of its own, independent of whatever
+# commit message its tip happens to carry. `create` also fires for new
+# tags - including the release tags release.config.js itself creates on
+# every run - so detect-env's `if:` below excludes
+# github.ref_type == 'tag' specifically; everything else (branch name
+# matching) still goes through detect-environment.yaml exactly as it does
+# for `push`, since github.ref_name/github.ref_type reflect the original
+# triggering event even through workflow_call (the same behaviour
+# preview.yaml relies on for github.event_name).
 #
-# semantic-release's own version-bump + changelog commit (pushed by
-# ./.config/verified-git-commit.plugin.cjs, authenticated as nmg-bot) no
-# longer carries "[skip ci]" - see that plugin's header comment for why
-# that was dropped. Two things depended on it, and got fixed differently
-# instead of preserved as-is:
-#
-# 1) CONFIRMED LIVE: cutting release/* (or hotfix/*) branches straight
-#    from develop/master's current tip - the normal case, not an edge
-#    case, since a healthy tip is routinely a bot release commit right
-#    after any merge - meant the new branch's first push inherited
-#    whatever commit-message suppression that commit carried. With
-#    [skip ci] in the message, GitHub skips a push-triggered workflow
-#    based on whatever commit the ref now points at, not just commits
-#    newly introduced by that push (see GitHub's own changelog:
-#    https://github.blog/changelog/2021-02-08-github-actions-skip-pull-request-and-push-workflows-with-skip-ci/).
-#    So the branch's first push got silently zero CI: no preview checks,
-#    no staging deploy, no rc release. No error, just silence.
-#
-# 2) A second, worse instance of the same problem: even without cutting a
-#    branch, the bot's own commit becomes the branch's new tip after
-#    every real merge. If [skip ci] suppressed it, that tip commit would
-#    permanently have zero check runs of its own - and master's branch
-#    protection requires "preview / commitlint" etc. to have run against
-#    the EXACT commit a release/*/hotfix/* -> master PR's head points
-#    to, not an ancestor of it. Left alone, this would eventually
-#    reproduce the exact "Expected - waiting for status to be reported,
-#    forever" bug this whole preview.yaml setup was already built to
-#    avoid - just one commit later than wherever it was last patched.
-#
-# Fixing both required different tools, because they're different
-# problems: (1) is about a push never creating a workflow run at all,
-# which nothing inside the workflow can react to - only a trigger not
-# subject to [skip ci] fixes that, hence `create` below (fires whenever a
-# ref is made, bypassing that suppression entirely). (2) is about a
-# workflow needing to run, but with the ONE actually expensive/risky part
-# - a real redeploy of code that was already deployed a moment ago -
-# skipped for that specific commit. Dropping [skip ci] and instead
-# gating just the `deploy` job below on commit authorship solves this
-# precisely: preview checks now run and get recorded against every real
-# tip commit including the bot's own, while only the deploy step itself
-# is skipped when nmg-bot is what authored the tip.
-#
-# `create` also fires for new tags - including the release tags
-# release.config.js itself creates on every run - and unlike `push`,
-# isn't suppressible by commit message at all, so an unguarded
-# `on: create` would re-trigger this workflow on every release tag,
-# uninterrupted. detect-env's `if:` below excludes
-# github.ref_type == 'tag' specifically to prevent that; everything else
-# (branch name matching) still goes through detect-environment.yaml
-# exactly as it does for `push`, since github.ref_name/github.ref_type
-# reflect the original triggering event even through workflow_call (same
-# behavior already relied on in preview.yaml's own CONFIRMED LIVE note on
-# github.event_name).
-#
-# NOT YET CONFIRMED LIVE: the `deploy` job's author check assumes a
-# commit created via the Git Data API with no custom author/committer
-# (as ./.config/verified-git-commit.plugin.cjs does) gets attributed to
-# the App's bot login in the format <app-slug>[bot] - i.e. "nmg-bot[bot]"
+# The `deploy` job's author check assumes a commit created via the Git
+# Data API with no custom author/committer (as
+# ./.config/verified-git-commit.plugin.cjs does) gets attributed to the
+# App's bot login in the format <app-slug>[bot] - i.e. "nmg-bot[bot]"
 # here - matching the git-config convention GitHub's own docs recommend
-# for this token. Reasonably well-supported, but not yet exercised
-# end-to-end in this repo; verify against a real run before trusting it
-# for anything beyond "worst case, it fails open and still deploys"
-# (a mismatch means the condition is just never true, so deploy runs
-# every time rather than silently never running - the safe direction to
-# get wrong).
+# for this token. A mismatch fails open (the condition is simply never
+# true, so deploy runs every time instead of silently never running),
+# which is the safe direction to get wrong. The
+# `log-triggering-commit-author` job below piggybacks on detect-env
+# (which runs unconditionally on every ordinary push, unlike `deploy`
+# itself) to print the exact attribution string against a real run - safe
+# to delete once you've confirmed it reads 'nmg-bot[bot]'.
 #
 # The actual deploy steps in "deploy" are placeholders - replace the
 # "TODO" step with whatever this project really does (build + push an
 # image, run a deploy script, sync to a host, etc).
 #
-# CONFIRMED LIVE: the exact same "Expected - waiting for status to be
-# reported, forever" bug documented above for release/*/hotfix/* -> master
-# also happens on master -> develop, via sync-master-to-develop.yaml's PR.
-# That PR's head is the live `master` branch, so its head commit is
-# whatever master's tip currently is - which, right after a release, is
-# nmg-bot's own "chore(release): ..." commit, same as everywhere else in
-# this file. develop's branch protection requires the same
-# "preview / commitlint" etc. checks that master's does, but nothing ever
-# ran preview.yaml against a push to MASTER - the condition below only
-# covered 'preview'/'staging', never 'production' - so those checks never
-# got recorded against master's tip commit, and the sync PR sat stuck
-# exactly like a release/hotfix PR used to. Adding 'production' to the
-# condition closes this the same way point (2) above already does for
-# release/*/hotfix/*: preview checks now run (and get recorded) against
-# every push to master too, regardless of who authored it, while the
-# separate `deploy` job's author guard still keeps master pushes from
-# triggering a second real "deploy" for nmg-bot's own commit.
+# 'production' (master) is included in the `preview` job's condition below
+# so preview checks get recorded against master's tip too: develop's
+# branch protection requires the same "preview / commitlint" etc. checks
+# that master's does, and sync-master-to-develop.yaml's PR has master as
+# its head, so those checks need to run against whatever master's tip
+# currently is - including nmg-bot's own "chore(release): ..." commit -
+# for that PR to ever leave "Expected - waiting for status to be
+# reported". The separate `deploy` job's author guard still keeps master
+# pushes from triggering a second real "deploy" for nmg-bot's own commit.
 
 name: Deploy
 
@@ -128,29 +74,39 @@ on:
 
 jobs:
   detect-env:
-    # Excludes tag creation - see the CONFIRMED LIVE note above. Ordinary
-    # pushes are unaffected (github.event_name != 'create' is already
-    # true for those).
+    # Excludes tag creation - see the header comment above on `create`.
+    # Ordinary pushes are unaffected (github.event_name != 'create' is
+    # already true for those).
     if: github.event_name != 'create' || github.ref_type != 'tag'
     uses: ./.github/workflows/detect-environment.yaml
+
+  # Diagnostic only, safe to delete once confirmed - see the header
+  # comment above on the `deploy` job's author check, which this
+  # confirms. Piggybacks on this job rather than needing its own, since
+  # detect-env already runs unconditionally on every ordinary push
+  # (unlike `deploy`, which is exactly what this needs to see past).
+  log-triggering-commit-author:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "github.event.head_commit.author.username = '${{ github.event.head_commit.author.username }}'"
 
   preview:
     needs: detect-env
     # 'production' (master) is included so preview checks get recorded
-    # against master's tip too - see the CONFIRMED LIVE note above on why
-    # the sync-master-to-develop PR needs this exactly like release/hotfix
+    # against master's tip too - see the header comment above on why the
+    # sync-master-to-develop PR needs this exactly like release/hotfix
     # PRs into master do.
     if: needs.detect-env.outputs.environment == 'preview' || needs.detect-env.outputs.environment == 'staging' || needs.detect-env.outputs.environment == 'production'
     uses: ./.github/workflows/preview.yaml
 
   deploy:
     needs: detect-env
-    # The commit-author exclusion is the actual replacement for the old
-    # [skip ci] behavior - see the header comment's point (2). Only
-    # applies to ordinary pushes: github.event.head_commit isn't
-    # populated for a `create` event, so the author check is skipped
-    # entirely there via the event_name guard rather than evaluated
-    # against a missing field.
+    # The commit-author exclusion is what keeps nmg-bot's own version-bump
+    # commit from triggering a redundant real deploy of code that was just
+    # deployed a moment ago. Only applies to ordinary pushes:
+    # github.event.head_commit isn't populated for a `create` event, so
+    # the author check is skipped entirely there via the event_name guard
+    # rather than evaluated against a missing field.
     if: needs.detect-env.outputs.environment != 'none' && needs.detect-env.outputs.environment != 'preview' && (github.event_name != 'push' || github.event.head_commit.author.username != 'nmg-bot[bot]')
     runs-on: ubuntu-latest
     # Ties into GitHub's own Environments feature (Settings > Environments):
