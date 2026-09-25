@@ -1,0 +1,132 @@
+# Runs semantic-release on push to master/develop/release/*:
+#   master     -> stable release
+#   develop    -> beta prerelease
+#   release/*  -> rc prerelease
+# Config: .config/release.config.js (loaded via --extends, since
+# semantic-release only auto-discovers config at the repo root).
+#
+# Runs as nmg-bot (GitHub App token) because it needs actual write
+# access: semantic-release's own auth check pushes a probe commit, and
+# the version-bump + changelog commit pushes for real. nmg-bot must be
+# a bypass actor on master/develop's "require PR" rule.
+#
+# The version-bump + changelog commit is Verified: release.config.js
+# uses ./.config/verified-git-commit.plugin.cjs in place of
+# @semantic-release/git. Plain `git push` - even authenticated as an
+# App - never gets a Verified badge; only a commit GitHub creates
+# itself via the Git Data API does, which is what that plugin calls
+# instead of shelling out to git commit/push. No GPG/SSH key needed:
+# GitHub signs it with its own key on nmg-bot's behalf. See that file's
+# header comment for the full explanation. This step's `GITHUB_TOKEN`
+# (the same nmg-bot app token used for checkout) is what the plugin
+# authenticates the API calls with - no separate secret required.
+#
+# Note: hotfix/* is NOT included below and is NOT in release.config.js's
+# `branches` array either - the two must stay in sync. If hotfix/*
+# support is added later, add it in both places at once, not just here
+# (semantic-release will otherwise run and immediately report "branch
+# not configured" for any hotfix/* push, which is harmless noise but
+# worth avoiding).
+#
+# Triggers on `push` only. A branch's first push (including the push
+# that creates it) and every later push are both plain `push` events -
+# nothing in this repo's commit messages ever suppresses CI (see
+# verified-git-commit.plugin.cjs: its commit message deliberately never
+# carries "[skip ci]"), so there's no separate event type needed to
+# guarantee a run happens.
+#
+# The job's `if:` skips ordinary pushes whose head commit was authored
+# by nmg-bot - i.e. the bot's own version-bump commit landing as a push
+# in its own right. Not a correctness requirement (commit-analyzer
+# wouldn't classify a "chore(release): ..." commit as release-worthy
+# anyway, under the conventionalcommits preset's default rules, so this
+# would otherwise just cleanly no-op) - purely to avoid paying for a
+# full npm ci + semantic-release invocation that can only ever conclude
+# "nothing to release" against the exact commit it itself just created.
+# This depends on a commit created via the Git Data API with no custom
+# author/committer (as verified-git-commit.plugin.cjs does) being
+# attributed to the App's bot login in the format "nmg-bot[bot]" - the
+# `log-triggering-commit-author` job below exists so you can confirm
+# that string against a real run's log. If it's ever wrong, the only
+# effect is that this condition never matches, so the job simply runs
+# every time instead of skipping - safe either way.
+
+name: Release
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - 'release/**'
+
+# Prevents two releases on the same branch racing (e.g. a merge and
+# sync-master-to-develop.yaml landing seconds apart). github.ref_name,
+# not github.ref, is the context variable that reliably matches the
+# triggering branch across event types - the same one
+# detect-environment.yaml relies on elsewhere in this repo.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Confirms the assumption the `release` job's `if:` below depends on:
+  # that a commit verified-git-commit.plugin.cjs creates via the Git
+  # Data API (no custom author/committer set) is attributed to the
+  # literal login "nmg-bot[bot]". This has to be its own ungated job,
+  # not a step inside `release` - the run that actually needs checking
+  # is exactly the one where `release`'s `if:` evaluates false and that
+  # job never executes at all. Check this job's log after a real
+  # release (triggered by nmg-bot's own version-bump commit) and confirm
+  # the printed value reads 'nmg-bot[bot]' exactly; delete this job once
+  # confirmed.
+  log-triggering-commit-author:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "github.event.head_commit.author.username = '${{ github.event.head_commit.author.username }}'"
+
+  release:
+    if: github.event.head_commit.author.username != 'nmg-bot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Mint nmg-bot installation token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      # A freshly minted token can be rejected on first use before it
+      # propagates.
+      - name: Wait for installation token to propagate
+        run: sleep 5
+
+      # Must run AFTER the token is minted, and must receive it directly
+      # via `token:`. actions/checkout persists whatever credentials it's
+      # given into .git/config for the rest of the job - if it runs first
+      # with no token, it persists the default GITHUB_ACTIONS token
+      # instead, and every later git push (including the one
+      # semantic-release/git shells out to) authenticates as
+      # github-actions[bot] rather than nmg-bot. That identity isn't a
+      # bypass actor on master/develop's "require PR" rule, so the push
+      # gets rejected even though the app token itself is minted fine.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: npx semantic-release --extends ./.config/release.config.js

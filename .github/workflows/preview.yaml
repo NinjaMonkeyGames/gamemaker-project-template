@@ -1,0 +1,338 @@
+# Reusable workflow: the set of checks every feature/* branch must pass
+# (the "preview" gate — see CONTRIBUTING.md / detect-environment.yaml).
+# Called from deploy.yaml when the resolved environment is "preview".
+#
+# Add more jobs here as the preview gate grows (tests, build, lint, etc).
+#
+# develop does not use a merge queue, so this workflow only ever runs the
+# way deploy.yaml's workflow_call invokes it - there is no separate
+# merge_group trigger to account for here.
+
+name: Preview Checks
+
+on:
+  workflow_call:
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    # Declaring this environment is what makes GitHub record an actual
+    # "preview" Deployment for this commit - required for a "Require
+    # deployments to succeed: preview" branch protection rule to have
+    # anything to check against. Without this, no job anywhere ever
+    # creates a "preview" deployment (deploy.yaml's deploy job explicitly
+    # skips itself when the environment is "preview"), so that rule would
+    # fail on every PR, always, regardless of whether checks pass.
+    #
+    # NOTE: "Require deployments to succeed: preview" breaks GitHub's
+    # auto-merge feature outright - see CONTRIBUTING.md - so that rule is
+    # not enabled. environment: preview is left in place since it doesn't
+    # hurt anything and would matter again if that rule were ever enabled.
+    environment: preview
+    steps:
+      # fetch-depth: 0 (full history, all branches) rather than 2 - finding
+      # a merge-base for hotfix/* and release/* below needs real history,
+      # not just the last couple of commits.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json so commitlint uses the repo's own
+      # pinned commitlint + config-conventional versions, matching your
+      # local install and pr-title-lint.yaml.
+      - name: Install commitlint
+        run: npm ci
+
+      - name: Print commitlint version
+        run: npx commitlint --version
+
+      # feature/*: lints only the most recent commit (--last). Safe to
+      # check just the tip here, even across a multi-commit push, because
+      # feature/* -> develop is squash-merged - individual commits never
+      # survive into develop's history anyway (see pr-title-lint.yaml,
+      # which lints the PR title/body that actually lands there instead).
+      #
+      # Uses the commitlint CLI directly (rather than a third-party
+      # commitlint Action) so a wrong --config path fails loudly instead
+      # of silently falling back to bare @commitlint/config-conventional
+      # defaults, which a plain "feat: add x" would satisfy with no
+      # scope/body/signoff required - the same pattern pr-title-lint.yaml
+      # uses.
+      #
+      # Scoped to an explicit `startsWith(feature/)` match: master and
+      # develop only ever receive MERGE commits (release/*/hotfix/* ->
+      # master, and the master -> develop sync PR) - synthetic commits
+      # whose own message is never meant to be a standalone conventional
+      # commit, since the real content they merge in was already fully
+      # linted commit-by-commit when that source branch was pushed (see
+      # "Lint commit range (hotfix/*)" / "(release/*)" below). Nothing
+      # requires a merge commit's message to carry a Signed-off-by line
+      # (pr-title-lint.yaml only checks PRs into develop), so this step
+      # must never run against master or develop pushes.
+      - name: Lint last commit (feature/*)
+        if: startsWith(github.ref_name, 'feature/')
+        run: npx commitlint --config ./.config/commitlint.config.mjs --last
+
+      # hotfix/* and release/* merge into master with a regular merge
+      # commit (not squash - see CONTRIBUTING.md), so every individual
+      # commit's message survives into master's permanent history. --last
+      # only ever checks the single newest commit at push time: if a bad
+      # commit is buried under a later good one in the same push, it
+      # passes uncaught and its message reaches master unchecked. Linting
+      # the full range since the branch forked closes that gap.
+      #
+      # hotfix/* forks from master, so master is the right base. release/*
+      # forks from develop, NOT master - using master there would also
+      # re-lint all of develop's own history that hasn't reached master
+      # yet, which isn't this release branch's own work and isn't what's
+      # being checked here.
+      - name: Lint commit range (hotfix/*)
+        if: startsWith(github.ref_name, 'hotfix/')
+        run: npx commitlint --config ./.config/commitlint.config.mjs --from "$(git merge-base HEAD origin/master)" --to HEAD
+
+      - name: Lint commit range (release/*)
+        if: startsWith(github.ref_name, 'release/')
+        run: npx commitlint --config ./.config/commitlint.config.mjs --from "$(git merge-base HEAD origin/develop)" --to HEAD
+
+  # Lints every markdown file in the repo against .config/.markdownlint-cli2.jsonc.
+  # Runs unconditionally on every branch this workflow is called for, same
+  # reasoning as gm-cli-tests above: markdown content is meaningful to
+  # check regardless of which branch triggered the push, unlike
+  # commitlint's per-branch logic (which is about commit *messages*, not
+  # file content).
+  markdownlint:
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint's
+      # own "Install commitlint" step above.
+      - name: Install markdownlint-cli2
+        run: npm ci
+
+      # Deliberately NOT a bare "." target. markdownlint-cli2 special-cases
+      # a dot-only glob: per its own --help text, "markdownlint-cli2 ."
+      # doesn't mean "this directory tree" - it's mapped to
+      # "markdownlint-cli2 *.{md,markdown}", which only lints markdown
+      # files sitting directly in the current directory, non-recursively.
+      # That means this step has only ever checked root-level files
+      # (README.md, CHANGELOG.md, CONTRIBUTING.md) and never a single
+      # markdown file in any subdirectory, dot or otherwise - confirmed
+      # directly against this tool's own documented behaviour, the same way
+      # cspell's --dot gap below was confirmed.
+      #
+      # "**" (their other suggested alternative for "the whole tree") isn't
+      # right either: markdownlint-cli2 treats every file that glob matches
+      # as a markdown candidate regardless of extension, so it starts
+      # linting .yaml/.js/.json files as if they were markdown. "**/*.md"
+      # is what their own docs recommend for "every markdown file in the
+      # tree" specifically, and - unlike cspell - needs no extra flag to
+      # descend into .github/ or .config/; globby's ** already does that
+      # here.
+      - name: Run markdownlint-cli2
+        run: npx markdownlint-cli2 --config .config/.markdownlint-cli2.jsonc "**/*.md"
+
+  # Spell-checks every file in the repo against .config/cspell.json's
+  # dictionary. Runs unconditionally, same reasoning as markdownlint
+  # above - file content, not commit messages, so branch doesn't matter.
+  cspell:
+    environment: preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install cspell
+        run: npm ci
+
+      # --dot is required, not optional. cspell's own glob matching never
+      # descends into dot-directories (.github/, .config/) by default -
+      # confirmed directly: a bare "." target and an explicit "**" target
+      # both skip them identically, so this isn't a "." vs "**" distinction,
+      # it's cspell's baseline glob behaviour either way. Without --dot, this
+      # step has only ever checked non-dot-directory files - confirmed
+      # against this repo's own CI output, which listed exactly 14 files
+      # checked and none from .github/workflows/ or .config/. --dot is the
+      # documented flag for exactly this ("Include files and directories
+      # starting with `.` when matching globs").
+      - name: Run cspell
+        run: npx cspell --config .config/cspell.json . --dot
+
+  # Lints every shell script in the repo against shellcheck's own default
+  # rules (no repo-specific .shellcheckrc yet - add one if a rule ever
+  # needs to be turned off deliberately, rather than just living with a
+  # warning forever). Runs unconditionally, same reasoning as markdownlint
+  # and cspell above - script content, not commit messages, so branch
+  # doesn't matter.
+  #
+  # `find`, not a glob, and explicitly excluding node_modules. This is the
+  # same underlying problem markdownlint's and cspell's own header comments
+  # above describe, just showing up a third time in a third tool: a plain
+  # shell glob like `**/*.sh` does not descend into dot-directories by
+  # default either, confirmed directly here too - even with
+  # `shopt -s globstar` turned on, `**/*.sh` never matched
+  # .config/gm-fail.sh, so a glob-based version of this step would have
+  # silently never checked that file, the exact gap that turned up twice
+  # already for other tools this session. `find` recurses into
+  # dot-directories with no special-casing needed, so it's used here
+  # instead of a glob rather than adding a fourth ad hoc workaround.
+  shellcheck:
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint's own
+      # "Install commitlint" step above. The "shellcheck" npm package is a
+      # thin wrapper that downloads the real (Haskell) ShellCheck binary
+      # for the current platform on install and exposes it as `shellcheck`
+      # - `npx shellcheck` below runs that real binary, not a
+      # JS reimplementation of it.
+      - name: Install shellcheck
+        run: npm ci
+
+      - name: Run shellcheck
+        run: find . -name "*.sh" -not -path "./node_modules/*" -print0 | xargs -0 npx shellcheck
+
+  # Lints JS/TS/JSON against .config/eslint.config.js. Runs unconditionally,
+  # same reasoning as the other content-based lint jobs above - branch
+  # doesn't matter, only file content does.
+  eslint:
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # Installs from package-lock.json, same reasoning as commitlint's own
+      # "Install commitlint" step above.
+      - name: Install eslint
+        run: npm ci
+
+      - name: Run eslint
+        run: npx eslint --config .config/eslint.config.js .
+
+  # Builds and runs the project's own test suite via the GameMaker CLI
+  # (gm-cli), inside its own container image since that CLI isn't
+  # something the standard ubuntu-latest runner can run directly.
+  #
+  # `needs` the five lint jobs above and only runs if they all pass -
+  # the container pull + compile + Xvfb cycle is the slowest, most
+  # expensive part of this whole workflow, so there's no point spending
+  # that time when a cheap, fast check has already failed and the PR
+  # can't merge anyway.
+  #
+  # This is safe against the "Expected - waiting" trap documented in
+  # deploy.yaml's header comment, even though that trap is also about a
+  # required check not getting a result: that one happens when a
+  # workflow never triggers at all for a given ref, so no check run of
+  # any kind is ever created and the PR waits forever with nothing to
+  # look at. This is different - the job still runs as part of this same
+  # workflow invocation every time, GitHub just marks it "skipped"
+  # instead of executing its steps when `needs` isn't satisfied, and a
+  # skipped required check is treated as passed for merge-gating
+  # purposes (documented GitHub behaviour). So a PR is never left
+  # wondering whether this check is coming - it reports immediately
+  # either way - and the lint job that actually failed is still the one
+  # blocking the merge.
+  gm-cli-tests:
+    needs: [commitlint, markdownlint, cspell, shellcheck, eslint]
+    runs-on: ubuntu-latest
+    environment: preview
+    # gm-cli ships as this container image - `--privileged` is required
+    # by the image itself, not something this workflow adds by choice.
+    container:
+      image: monkeyknuckles/gm-cli:latest
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: npm install
+
+      # gm-cli needs a real (virtual) display to run, even headless in
+      # CI - Xvfb provides one. The short sleep gives it a moment to
+      # finish starting before gm-cli tries to use it.
+      #
+      # `|| true` on the gm-cli invocation is deliberate: its own exit
+      # code isn't what decides pass/fail here - the "Evaluate results"
+      # step below does, by scanning the captured output for "[FAIL]"
+      # (see .config/gm-fail.sh) - so a nonzero exit here must not fail
+      # this step before that scan gets a chance to run.
+      - name: Run tests under Xvfb
+        working-directory: ./grid-utility-professional
+        env:
+          DISPLAY: :99
+        run: |
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          sleep 2
+          npx @gamemaker/gm-cli@latest run --verbose 2>&1 | tee test_output.log || true
+
+      - name: Evaluate results
+        run: |
+          chmod +x ./.config/gm-fail.sh
+          ./.config/gm-fail.sh ./grid-utility-professional/test_output.log
+
+  # A compile *sanity check* - `needs: gm-cli-tests` specifically (not the
+  # lint jobs directly), since a project whose own unit tests fail has no
+  # business being checked for compile health either. Transitively, that
+  # also means commitlint/markdownlint/cspell have already passed too,
+  # since gm-cli-tests itself needs all three - same "skipped is treated
+  # as passed" reasoning as gm-cli-tests' own header comment above.
+  #
+  # This is NOT the same thing as producing a distributable build.
+  # `gm-cli compile` has no --output flag at all - it only validates that
+  # the project builds - which is exactly why it's the right command for
+  # a per-push gate rather than `gm-cli package` (which takes
+  # --target/--output and produces a real per-platform artifact). Building
+  # real distributables for every platform this project ships on belongs
+  # in deploy.yaml's `deploy` job instead, matrixed across targets, since
+  # that only runs for staging/production - not on every feature-branch
+  # push the way this job does.
+  #
+  # --target linux only for now, matching the platform actually being
+  # developed on. Add more targets (windows/mac/operagx/etc.) as their own
+  # steps, or switch this job to a `strategy: matrix` across targets, once
+  # there's an actual reason to compile-check more than one.
+  #
+  # Unlike gm-cli-tests' "Run tests under Xvfb" step, this doesn't need a
+  # virtual display or the tee + gm-fail.sh log-scraping workaround:
+  # `gm-cli compile` is a batch build step with no GUI/runtime component
+  # to spin up, so its own exit code is the real, reliable pass/fail
+  # signal here - unlike `run`'s exit code, which isn't (see that step's
+  # own comment on why it needed the workaround).
+  gm-cli-compile:
+    needs: gm-cli-tests
+    runs-on: ubuntu-latest
+    environment: preview
+    # gm-cli ships as this container image - `--privileged` is required
+    # by the image itself, not something this workflow adds by choice.
+    container:
+      image: monkeyknuckles/gm-cli:latest
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: npm install
+
+      - name: Compile project (linux)
+        working-directory: ./grid-utility-professional
+        run: npx @gamemaker/gm-cli@latest compile --target linux --verbose

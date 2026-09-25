@@ -1,0 +1,122 @@
+# Example caller workflow: runs whenever master, develop, release/*,
+# hotfix/*, or feature/* is pushed to, targeting the environment resolved
+# by detect-environment.yaml.
+#
+# feature/* branches resolve to "preview", which is a job set (see
+# preview.yaml), not a deploy - so it's called as its own reusable
+# workflow rather than going through the generic "deploy" job below.
+#
+# release/* and hotfix/* BOTH also trigger the preview job, even though
+# they resolve to the "staging" environment, not "preview". Reasoning:
+# a hotfix branches straight from master and skips develop entirely, so
+# its commits never go through the feature/* -> preview pipeline at all;
+# a release branch's constituent feature commits mostly did (as
+# feature/* branches, before being squashed into develop), but any commit
+# made DIRECTLY on the release branch itself (version bumps, last-minute
+# bug fixes - exactly what CONTRIBUTING.md says belongs there) never
+# does either. Without this, commitlint/cspell/markdownlint/gm-cli-tests
+# would never run against release/* or hotfix/* pushes at all - and
+# master's own branch protection requires preview / commitlint,
+# preview / cspell, preview / markdownlint, and preview / gm-cli-tests to
+# pass for both release/* and hotfix/* merges, so those PRs need the
+# environment resolved to "preview" here specifically to have anything to
+# check against.
+#
+# `create` fires in addition to `push` so that a brand-new branch (or a
+# release tag) always produces a run of its own, independent of whatever
+# commit message its tip happens to carry. `create` also fires for new
+# tags - including the release tags release.config.js itself creates on
+# every run - so detect-env's `if:` below excludes
+# github.ref_type == 'tag' specifically; everything else (branch name
+# matching) still goes through detect-environment.yaml exactly as it does
+# for `push`, since github.ref_name/github.ref_type reflect the original
+# triggering event even through workflow_call (the same behaviour
+# preview.yaml relies on for github.event_name).
+#
+# The `deploy` job's author check assumes a commit created via the Git
+# Data API with no custom author/committer (as
+# ./.config/verified-git-commit.plugin.cjs does) gets attributed to the
+# App's bot login in the format <app-slug>[bot] - i.e. "nmg-bot[bot]"
+# here - matching the git-config convention GitHub's own docs recommend
+# for this token. A mismatch fails open (the condition is simply never
+# true, so deploy runs every time instead of silently never running),
+# which is the safe direction to get wrong. The
+# `log-triggering-commit-author` job below piggybacks on detect-env
+# (which runs unconditionally on every ordinary push, unlike `deploy`
+# itself) to print the exact attribution string against a real run - safe
+# to delete once you've confirmed it reads 'nmg-bot[bot]'.
+#
+# The actual deploy steps in "deploy" are placeholders - replace the
+# "TODO" step with whatever this project really does (build + push an
+# image, run a deploy script, sync to a host, etc).
+#
+# 'production' (master) is included in the `preview` job's condition below
+# so preview checks get recorded against master's tip too: develop's
+# branch protection requires the same "preview / commitlint" etc. checks
+# that master's does, and sync-master-to-develop.yaml's PR has master as
+# its head, so those checks need to run against whatever master's tip
+# currently is - including nmg-bot's own "chore(release): ..." commit -
+# for that PR to ever leave "Expected - waiting for status to be
+# reported". The separate `deploy` job's author guard still keeps master
+# pushes from triggering a second real "deploy" for nmg-bot's own commit.
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - 'release/**'
+      - 'hotfix/**'
+      - 'feature/**'
+  create:
+
+jobs:
+  detect-env:
+    # Excludes tag creation - see the header comment above on `create`.
+    # Ordinary pushes are unaffected (github.event_name != 'create' is
+    # already true for those).
+    if: github.event_name != 'create' || github.ref_type != 'tag'
+    uses: ./.github/workflows/detect-environment.yaml
+
+  # Diagnostic only, safe to delete once confirmed - see the header
+  # comment above on the `deploy` job's author check, which this
+  # confirms. Piggybacks on this job rather than needing its own, since
+  # detect-env already runs unconditionally on every ordinary push
+  # (unlike `deploy`, which is exactly what this needs to see past).
+  log-triggering-commit-author:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "github.event.head_commit.author.username = '${{ github.event.head_commit.author.username }}'"
+
+  preview:
+    needs: detect-env
+    # 'production' (master) is included so preview checks get recorded
+    # against master's tip too - see the header comment above on why the
+    # sync-master-to-develop PR needs this exactly like release/hotfix
+    # PRs into master do.
+    if: needs.detect-env.outputs.environment == 'preview' || needs.detect-env.outputs.environment == 'staging' || needs.detect-env.outputs.environment == 'production'
+    uses: ./.github/workflows/preview.yaml
+
+  deploy:
+    needs: detect-env
+    # The commit-author exclusion is what keeps nmg-bot's own version-bump
+    # commit from triggering a redundant real deploy of code that was just
+    # deployed a moment ago. Only applies to ordinary pushes:
+    # github.event.head_commit isn't populated for a `create` event, so
+    # the author check is skipped entirely there via the event_name guard
+    # rather than evaluated against a missing field.
+    if: needs.detect-env.outputs.environment != 'none' && needs.detect-env.outputs.environment != 'preview' && (github.event_name != 'push' || github.event.head_commit.author.username != 'nmg-bot[bot]')
+    runs-on: ubuntu-latest
+    # Ties into GitHub's own Environments feature (Settings > Environments):
+    # add required reviewers or environment-scoped secrets per environment
+    # there, e.g. require manual approval before anything reaches
+    # "production".
+    environment: ${{ needs.detect-env.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Deploy to ${{ needs.detect-env.outputs.environment }}
+        run: |
+          echo "TODO: replace with real deploy steps for '${{ needs.detect-env.outputs.environment }}'"
