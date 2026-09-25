@@ -6,22 +6,30 @@
 // 1. Automatic actions.
 // 2. Add a visible ruler to the IDE.
 // 3. Format settings.
-// 4. Confirmation settings.
-// 5. Mardown settings.
-// 6. Include otherwise hidden folders in the file tree view.
-// 7. Include otherwise excluded files in the project file search.
-// 8. Start Terminal in Bash.
-// 9. Automatically format JSON files on save.
-// 10. Set commitlint config path.
-// 11. Markdown settings.
-{
-  // Markdown Settings
+// 4. Set eslint config path.
+// 5. Confirmation settings.
+// 6. Markdown settings.
+// 7. Set cspell config path.
+// 8. Include otherwise hidden folders in the file tree view.
+// 9. Include otherwise excluded files in the project file search.
+// 10. Start Terminal in Bash.
+// 11. Automatically format JSON files on save.
+// 12. Set commitlint config path.
+// 13. Markdown settings.
 
-  "[markdown]": 
+{
+// Markdown Settings
+
+  "[markdown]":
   {
     "editor.defaultFormatter": "yzhang.markdown-all-in-one",
     "editor.formatOnSave": true
   },
+
+  // Set cspell config path
+
+  "cSpell.import": ["./.config/cspell.json"],
+
 
   // Set commitlint config path
 
@@ -44,6 +52,10 @@
 
   "editor.wrappingIndent": "same", // Keep indentation level of wrapped lines
 
+  // Set eslint config path
+
+  "eslint.options": { "overrideConfigFile": ".config/eslint.config.js" },
+  "eslint.workingDirectories": ["."],
   // Confirmation Settings
 
   "explorer.confirmDelete": false, // Prevents prompt when deleting files
@@ -70,7 +82,7 @@
 
   // Include Otherwise Excluded Files In Project File Search
 
-  "search.exclude": 
+  "search.exclude":
   {
     "**/.git": false, // Include (Exclude) .git folder
     "**/node_modules": false // Include (Exclude) node_modules folder
