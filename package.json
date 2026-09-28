@@ -39,7 +39,7 @@
   ],
   "license": "GPL-3.0",
   "main": "index.js",
-  "name": "sandbox-test",
+  "name": "gamemaker-project-template",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/NinjaMonkeyGames/gamemaker-project-template.git"
