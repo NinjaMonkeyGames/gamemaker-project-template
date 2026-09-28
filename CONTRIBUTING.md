@@ -26,6 +26,7 @@ questions, please feel free to contact the repository owner — details provided
     - [Continuous integration checks](#continuous-integration-checks)
     - [Version control \& the `.yyp` file](#version-control--the-yyp-file)
     - [Code comment style](#code-comment-style)
+    - [Spelling exceptions (cspell)](#spelling-exceptions-cspell)
   - [GameMaker Development](#gamemaker-development)
     - [Coding Standards \& Best Practices](#coding-standards--best-practices)
       - [1. Naming Conventions](#1-naming-conventions)
@@ -225,16 +226,20 @@ When the fix is ready:
 
 #### Closing issues
 
-⚠️ **Caution:** merging into `develop` does **not** auto-close referenced issues, even with GitHub's usual
-`Closes #123`-style keywords. GitHub only evaluates those keywords when a pull request merges into the repository's
-**default branch** (`master`) — not `develop`.
+⚠️ **Caution:** merging into `develop` does **not** auto-close referenced issues via GitHub's usual `Closes #123`-style
+keywords. GitHub only evaluates those keywords when a pull request merges into the repository's **default branch**
+(`master`) — not `develop`.
 
-Issues are therefore **closed manually** when merging a `feature/*` pull request, rather than automated. This is a
-deliberate choice, not a limitation being worked around: closing issues by hand at merge time means actually reviewing
-what a merge resolves, rather than trusting a keyword match.
+Reference the issues a pull request addresses in its description (e.g. `References #123`, or a full issue URL) —
+`Closes`/`Fixes`/`Resolves` all work here too, since none of them trigger GitHub's own auto-close outside `master`
+anyway.
 
-Reference the issues a pull request addresses in its description (e.g. `References #123`) so there's a checklist to
-close against at merge time, even though this reference will not trigger an automatic close.
+**`feature/*` → `develop`, `release/*` → `master`, and `hotfix/*` → `master` merges close their referenced issues
+automatically**, the moment the pull request merges: `close-referenced-issues.yaml` reads the merged PR's own
+description, matches it against an issue number or URL, and closes each one it finds, leaving a comment on the issue
+that links back to the merging pull request. This doesn't skip review — a human already reviewed and merged the pull
+request itself before this runs; automating the close only removes the "forgot to click it afterwards" step, not the
+review.
 
 ---
 
@@ -336,6 +341,26 @@ All seven `preview / *` checks also register a `preview` GitHub Deployment for t
 In source-code comments (`.mjs`, `.js`, `.sh`, `.yaml`, etc.), prefer backticks (`` ` ``) over single quotes (`'`) when
 quoting an identifier, value, file path, or branch name — e.g. `` `feature/*` `` rather than `'feature/*'`. This matches
 how this document quotes identifiers and keeps quoting consistent between prose and code.
+
+---
+
+### Spelling exceptions (cspell)
+
+When `preview / cspell` flags a real word that isn't a typo (a name, a technical term, an abbreviation), scope the
+fix to the file it actually occurs in — don't add it to `.config/cspell.json`'s top-level `words` list. That list
+applies repository-wide, forever, so every addition there quietly disables the check for that word everywhere in the
+repo, not just where it's actually used.
+
+- **One-off, in a single file:** add an inline directive as a comment in that file, using whatever comment syntax the
+  file itself uses — e.g. `# cspell:ignore someword` in a `.sh`/`.yaml` file, `// cspell:ignore someword` in `.js`,
+  or `<!-- cspell:ignore someword -->` in Markdown. Use `cspell:words` instead of `cspell:ignore` if the word should
+  actually be recognized (and offered as a suggestion) rather than merely skipped. Either way, the exception applies
+  to that one file only.
+- **Recurring across a whole file type:** add a scoped entry to `.config/cspell.json`'s `overrides` array instead,
+  keyed to a glob — see the existing `**/*.yyp, **/*.yy` entry there for the pattern to follow. This widens the
+  exception to every file matching that glob, and no further.
+- **Reserve the top-level `words` list** for words that are genuinely project-wide vocabulary — the org/product
+  name, a term that recurs across most of the repo — not for something that happens to show up in one place.
 
 ---
 
@@ -532,7 +557,8 @@ If you have any problems with the repository or have any suggestions please cont
 You may also contact us via our [website](https://ninjamonkeygames.com).
 
 Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/gamemaker-project-template/issues) on
-GitHub.
+GitHub — except a security vulnerability, which should go through [SECURITY.md](SECURITY.md) instead of a public
+issue.
 
 ---
 
