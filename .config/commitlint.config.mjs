@@ -3,6 +3,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 import signedOffByRule from './signed-off-by-regex.js';
+import issueReferenceKeywordRule from './issue-reference-keyword.js';
 
 // Rule severity
 
@@ -45,6 +46,7 @@ export default
     // Custom rules
 
     'signed-off-by-regex': [ERROR, ALWAYS],             // Require a "Signed-off-by" line in commit messages
+    'issue-reference-keyword': [ERROR, ALWAYS],         // Restrict issue references to Close/Fix/Reference only
 
     // Conventional commit rules
 
@@ -128,5 +130,17 @@ export default
     ],
   },
 
-  plugins: [signedOffByRule], // Use the custom "Signed-off-by" rule
+  // A single merged plugin object, not two separate array entries: commitlint's loader (@commitlint/load's
+  // load.js) assigns every non-string `plugins` array entry to the same `plugins.local` key, so a second raw
+  // plugin object silently clobbers the first instead of adding to it. Each rule still lives in its own file
+  // (signed-off-by-regex.js, issue-reference-keyword.js) - only the merge into one exported `rules` object
+  // happens here.
+  plugins: [
+    {
+      rules: {
+        ...signedOffByRule.rules,
+        ...issueReferenceKeywordRule.rules,
+      },
+    },
+  ],
 };

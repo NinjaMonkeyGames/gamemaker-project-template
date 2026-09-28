@@ -230,16 +230,20 @@ When the fix is ready:
 keywords. GitHub only evaluates those keywords when a pull request merges into the repository's **default branch**
 (`master`) — not `develop`.
 
-Reference the issues a pull request addresses in its description (e.g. `References #123`, or a full issue URL) —
-`Closes`/`Fixes`/`Resolves` all work here too, since none of them trigger GitHub's own auto-close outside `master`
-anyway.
+Reference the issues a pull request addresses on their own line in its description, starting that line with exactly
+one of **`Close`**, **`Fix`**, or **`Reference`** (e.g. `Reference #123`, or a full issue URL) — commitlint enforces
+this strictly: the word must match one of those three exactly, case-sensitive, with no other form (`Closes`, `Fixed`,
+`References`, `Resolves`, etc. all fail), and a bare `#123` with no keyword at all also fails. This is narrower than
+GitHub's own auto-close keyword list on purpose — see `.config/issue-reference-keyword.js` — so every reference in
+this repo's history reads the same way. One keyword can introduce more than one reference on its line (e.g.
+`Reference #123, #124`).
 
 **`feature/*` → `develop`, `release/*` → `master`, and `hotfix/*` → `master` merges close their referenced issues
 automatically**, the moment the pull request merges: `close-referenced-issues.yaml` reads the merged PR's own
-description, matches it against an issue number or URL, and closes each one it finds, leaving a comment on the issue
-that links back to the merging pull request. This doesn't skip review — a human already reviewed and merged the pull
-request itself before this runs; automating the close only removes the "forgot to click it afterwards" step, not the
-review.
+description, recognising exactly the same three keywords commitlint enforces, and closes each issue it finds, leaving
+a comment on the issue that links back to the merging pull request. This doesn't skip review — a human already
+reviewed and merged the pull request itself before this runs; automating the close only removes the "forgot to click
+it afterwards" step, not the review.
 
 ---
 
@@ -247,10 +251,10 @@ review.
 
 All commit messages, and `feature/*` → `develop` pull request titles and descriptions (squashing turns the PR title +
 body into the actual commit message — see [Supporting branches](#supporting-branches)), must follow
-[Conventional Commits](https://www.conventionalcommits.org/) as configured in `.config/commitlint.config.mjs`, with a
-custom plugin at `.config/signed-off-by-regex.js`. Pull request titles and descriptions are actually checked against
-`.config/commitlint.pr-message.config.mjs`, a thin wrapper around the same config — see the note on `Signed-off-by`
-below for the one rule it changes.
+[Conventional Commits](https://www.conventionalcommits.org/) as configured in `.config/commitlint.config.mjs`, with
+custom plugins at `.config/signed-off-by-regex.js` and `.config/issue-reference-keyword.js`. Pull request titles and
+descriptions are actually checked against `.config/commitlint.pr-message.config.mjs`, a thin wrapper around the same
+config — see the note on `Signed-off-by` below for the one rule it changes.
 
 Beyond the standard Conventional Commits format, this project requires:
 
@@ -259,6 +263,9 @@ Beyond the standard Conventional Commits format, this project requires:
 - A **`Signed-off-by: Name <email@example.com>`** line — a
   [Developer Certificate of Origin](https://developercertificate.org/)-style sign-off, not a cryptographically signed
   commit.
+- At least one **issue reference**, on its own line starting with exactly `Close`, `Fix`, or `Reference` — see
+  [Closing issues](#closing-issues) for the full explanation of why only these three, and why case and inflection
+  matter.
 
 ℹ️ **Imperative mood is encouraged, not enforced.** Aim for subjects like "add X" / "fix Y" rather than "added X" /
 "fixed Y" — read it as completing "This commit will ...". `.config/commitlint.config.mjs` has no rule checking this, and
@@ -290,6 +297,8 @@ Example:
 feat(core): add player movement
 
 Adds basic WASD movement to the player controller.
+
+Reference #123
 
 Signed-off-by: Jane Doe <jane@example.com>
 ```
