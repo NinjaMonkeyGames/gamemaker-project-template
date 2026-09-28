@@ -76,12 +76,15 @@
 #   - title: "chore(config): sync master into develop" - "config" is a
 #     real entry in scope-enum, subject is lowercase and under 50 chars.
 #   - body: sentence-case, >=10 chars, every line under 72.
-#   - "References #1", not "Closes #1" - Closes is a GitHub auto-close
-#     keyword, and issue #1 is meant to stay open forever as a running
-#     log of every sync (every sync PR references the same #1; none of
-#     them should ever close it). References links the PR into #1's
-#     timeline without closing it, and still satisfies commitlint's
-#     references-empty rule.
+#   - "Reference #1", not "Closes #1" or "Close #1" - issue #1 is meant to
+#     stay open forever as a running log of every sync (every sync PR
+#     references the same #1; none of them should ever close it).
+#     Reference links the PR into #1's timeline without closing it, still
+#     satisfies commitlint's references-empty rule, and is one of the
+#     exactly three keywords (Close, Fix, Reference - see
+#     .config/issue-reference-keyword.js) this repo's commitlint config
+#     allows before a "#123"-style reference at all - the singular,
+#     capitalised form matters: "References #1" (plural) fails that rule.
 #   - Signed-off-by carries nmg-bot's own identity, not a human's - this
 #     PR is genuinely bot-generated, no human wrote it, so a human DCO
 #     signoff would misattribute authorship. The plain
@@ -231,7 +234,7 @@ jobs:
               '',
               '- Keeps master up-to-date to help prevent conflicts.',
               '',
-              'References #1',
+              'Reference #1',
               '',
               'Signed-off-by: nmg-bot[bot] <nmg-bot[bot]@users.noreply.github.com>',
             ].join('\n');
@@ -294,7 +297,7 @@ jobs:
               "  in flight, so it can't ship without a fix that landed on" \
               "  master after this branch was cut." \
               "" \
-              "References #1" \
+              "Reference #1" \
               "" \
               "Signed-off-by: nmg-bot[bot] <nmg-bot[bot]@users.noreply.github.com>")
 

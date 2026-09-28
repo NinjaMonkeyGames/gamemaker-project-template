@@ -26,6 +26,7 @@ questions, please feel free to contact the repository owner — details provided
     - [Continuous integration checks](#continuous-integration-checks)
     - [Version control \& the `.yyp` file](#version-control--the-yyp-file)
     - [Code comment style](#code-comment-style)
+    - [Spelling exceptions (cspell)](#spelling-exceptions-cspell)
   - [GameMaker Development](#gamemaker-development)
     - [Coding Standards \& Best Practices](#coding-standards--best-practices)
       - [1. Naming Conventions](#1-naming-conventions)
@@ -225,16 +226,24 @@ When the fix is ready:
 
 #### Closing issues
 
-⚠️ **Caution:** merging into `develop` does **not** auto-close referenced issues, even with GitHub's usual
-`Closes #123`-style keywords. GitHub only evaluates those keywords when a pull request merges into the repository's
-**default branch** (`master`) — not `develop`.
+⚠️ **Caution:** merging into `develop` does **not** auto-close referenced issues via GitHub's usual `Closes #123`-style
+keywords. GitHub only evaluates those keywords when a pull request merges into the repository's **default branch**
+(`master`) — not `develop`.
 
-Issues are therefore **closed manually** when merging a `feature/*` pull request, rather than automated. This is a
-deliberate choice, not a limitation being worked around: closing issues by hand at merge time means actually reviewing
-what a merge resolves, rather than trusting a keyword match.
+Reference the issues a pull request addresses on their own line in its description, starting that line with exactly
+one of **`Close`**, **`Fix`**, or **`Reference`** (e.g. `Reference #123`, or a full issue URL) — commitlint enforces
+this strictly: the word must match one of those three exactly, case-sensitive, with no other form (`Closes`, `Fixed`,
+`References`, `Resolves`, etc. all fail), and a bare `#123` with no keyword at all also fails. This is narrower than
+GitHub's own auto-close keyword list on purpose — see `.config/issue-reference-keyword.js` — so every reference in
+this repo's history reads the same way. One keyword can introduce more than one reference on its line (e.g.
+`Reference #123, #124`).
 
-Reference the issues a pull request addresses in its description (e.g. `References #123`) so there's a checklist to
-close against at merge time, even though this reference will not trigger an automatic close.
+**`feature/*` → `develop`, `release/*` → `master`, and `hotfix/*` → `master` merges close their referenced issues
+automatically**, the moment the pull request merges: `close-referenced-issues.yaml` reads the merged PR's own
+description, recognising exactly the same three keywords commitlint enforces, and closes each issue it finds, leaving
+a comment on the issue that links back to the merging pull request. This doesn't skip review — a human already
+reviewed and merged the pull request itself before this runs; automating the close only removes the "forgot to click
+it afterwards" step, not the review.
 
 ---
 
@@ -242,10 +251,10 @@ close against at merge time, even though this reference will not trigger an auto
 
 All commit messages, and `feature/*` → `develop` pull request titles and descriptions (squashing turns the PR title +
 body into the actual commit message — see [Supporting branches](#supporting-branches)), must follow
-[Conventional Commits](https://www.conventionalcommits.org/) as configured in `.config/commitlint.config.mjs`, with a
-custom plugin at `.config/signed-off-by-regex.js`. Pull request titles and descriptions are actually checked against
-`.config/commitlint.pr-message.config.mjs`, a thin wrapper around the same config — see the note on `Signed-off-by`
-below for the one rule it changes.
+[Conventional Commits](https://www.conventionalcommits.org/) as configured in `.config/commitlint.config.mjs`, with
+custom plugins at `.config/signed-off-by-regex.js` and `.config/issue-reference-keyword.js`. Pull request titles and
+descriptions are actually checked against `.config/commitlint.pr-message.config.mjs`, a thin wrapper around the same
+config — see the note on `Signed-off-by` below for the one rule it changes.
 
 Beyond the standard Conventional Commits format, this project requires:
 
@@ -254,6 +263,9 @@ Beyond the standard Conventional Commits format, this project requires:
 - A **`Signed-off-by: Name <email@example.com>`** line — a
   [Developer Certificate of Origin](https://developercertificate.org/)-style sign-off, not a cryptographically signed
   commit.
+- At least one **issue reference**, on its own line starting with exactly `Close`, `Fix`, or `Reference` — see
+  [Closing issues](#closing-issues) for the full explanation of why only these three, and why case and inflection
+  matter.
 
 ℹ️ **Imperative mood is encouraged, not enforced.** Aim for subjects like "add X" / "fix Y" rather than "added X" /
 "fixed Y" — read it as completing "This commit will ...". `.config/commitlint.config.mjs` has no rule checking this, and
@@ -285,6 +297,8 @@ Example:
 feat(core): add player movement
 
 Adds basic WASD movement to the player controller.
+
+Reference #123
 
 Signed-off-by: Jane Doe <jane@example.com>
 ```
@@ -336,6 +350,26 @@ All seven `preview / *` checks also register a `preview` GitHub Deployment for t
 In source-code comments (`.mjs`, `.js`, `.sh`, `.yaml`, etc.), prefer backticks (`` ` ``) over single quotes (`'`) when
 quoting an identifier, value, file path, or branch name — e.g. `` `feature/*` `` rather than `'feature/*'`. This matches
 how this document quotes identifiers and keeps quoting consistent between prose and code.
+
+---
+
+### Spelling exceptions (cspell)
+
+When `preview / cspell` flags a real word that isn't a typo (a name, a technical term, an abbreviation), scope the
+fix to the file it actually occurs in — don't add it to `.config/cspell.json`'s top-level `words` list. That list
+applies repository-wide, forever, so every addition there quietly disables the check for that word everywhere in the
+repo, not just where it's actually used.
+
+- **One-off, in a single file:** add an inline directive as a comment in that file, using whatever comment syntax the
+  file itself uses — e.g. `# cspell:ignore someword` in a `.sh`/`.yaml` file, `// cspell:ignore someword` in `.js`,
+  or `<!-- cspell:ignore someword -->` in Markdown. Use `cspell:words` instead of `cspell:ignore` if the word should
+  actually be recognized (and offered as a suggestion) rather than merely skipped. Either way, the exception applies
+  to that one file only.
+- **Recurring across a whole file type:** add a scoped entry to `.config/cspell.json`'s `overrides` array instead,
+  keyed to a glob — see the existing `**/*.yyp, **/*.yy` entry there for the pattern to follow. This widens the
+  exception to every file matching that glob, and no further.
+- **Reserve the top-level `words` list** for words that are genuinely project-wide vocabulary — the org/product
+  name, a term that recurs across most of the repo — not for something that happens to show up in one place.
 
 ---
 
@@ -532,7 +566,8 @@ If you have any problems with the repository or have any suggestions please cont
 You may also contact us via our [website](https://ninjamonkeygames.com).
 
 Any bugs should be raised as an [issue](https://github.com/NinjaMonkeyGames/gamemaker-project-template/issues) on
-GitHub.
+GitHub — except a security vulnerability, which should go through [SECURITY.md](SECURITY.md) instead of a public
+issue.
 
 ---
 
