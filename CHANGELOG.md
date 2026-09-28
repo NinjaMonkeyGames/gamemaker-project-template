@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/NinjaMonkeyGames/gamemaker-project-template/compare/v1.0.0...v1.0.1) (2026-09-28)
+
+### Bug Fixes
+
+* **config:** post release fixes ([#33](https://github.com/NinjaMonkeyGames/gamemaker-project-template/issues/33)) ([25ecd08](https://github.com/NinjaMonkeyGames/gamemaker-project-template/commit/25ecd080f716238ceca2e7d1212237462c0a934b)), closes [#31](https://github.com/NinjaMonkeyGames/gamemaker-project-template/issues/31)
+
 ## 1.0.0 (2026-09-26)
 
 ### Features
