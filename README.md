@@ -118,7 +118,7 @@ OS: Linux x64 6.12.105+deb13-amd64
 | Markdownlint                          | 0.41.0                            |
 | Commitlint                            | 21.2.2                            |
 | Commitlint config-conventional        | 21.2.2                            |
-| gm-cli                                | 2.3.0                             |
+| gm-cli                                | 2.4.1                             |
 | cSpell                                | 10.3.0                            |
 | semantic-release                      | 25.0.9                            |
 
