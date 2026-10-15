@@ -1,9 +1,8 @@
 # CONTRIBUTING
 
-This document provides all the information you would need to contribute to this repository: the branching workflow
-and CI process, and the coding standards and best practices expected of a NinjaMonkeyGames project. Maintaining
-quality and consistency across the codebase matters here as much as the process around it. If you have any
-questions, please feel free to contact the repository owner — details provided in the footer.
+This guide explains how to contribute to the repository, covering branching, CI, and the coding standards and best
+practices followed across NinjaMonkeyGames projects. Consistent, high-quality code matters just as much as a smooth
+development process. Questions? Contact the repository owner using the details in the footer.
 
 ---
 <!-- markdownlint-disable MD013 -->
@@ -226,24 +225,30 @@ When the fix is ready:
 
 #### Closing issues
 
-⚠️ **Caution:** merging into `develop` does **not** auto-close referenced issues via GitHub's usual `Closes #123`-style
-keywords. GitHub only evaluates those keywords when a pull request merges into the repository's **default branch**
-(`master`) — not `develop`.
+⚠️ Caution: Merging into develop does not auto-close referenced issues via GitHub's native Closes #123-style keywords
+because GitHub only evaluates those keywords when pulling into the repository's default branch (master) — not develop.
 
-Reference the issues a pull request addresses on their own line in its description, starting that line with exactly
-one of **`Close`**, **`Fix`**, or **`Reference`** (e.g. `Reference #123`, or a full issue URL) — commitlint enforces
-this strictly: the word must match one of those three exactly, case-sensitive, with no other form (`Closes`, `Fixed`,
-`References`, `Resolves`, etc. all fail), and a bare `#123` with no keyword at all also fails. This is narrower than
-GitHub's own auto-close keyword list on purpose — see `.config/issue-reference-keyword.js` — so every reference in
-this repo's history reads the same way. One keyword can introduce more than one reference on its line (e.g.
-`Reference #123, #124`).
+However, you don't need to worry about closing them manually: the script close-referenced-issues.yaml handles this
+automatically the moment the pull request merges (feature/_→ develop, release/_→ master, and hotfix/* → master).
 
-**`feature/*` → `develop`, `release/*` → `master`, and `hotfix/*` → `master` merges close their referenced issues
-automatically**, the moment the pull request merges: `close-referenced-issues.yaml` reads the merged PR's own
-description, recognising exactly the same three keywords commitlint enforces, and closes each issue it finds, leaving
-a comment on the issue that links back to the merging pull request. This doesn't skip review — a human already
-reviewed and merged the pull request itself before this runs; automating the close only removes the "forgot to click
-it afterwards" step, not the review.
+To make this automation work:
+
+  Reference the issues a pull request addresses on their own line in its description.
+
+  Start that line using the imperative mood with exactly one of Close, Fix, or Reference (e.g., Close #123, or a
+  full issue URL).
+
+  Commitlint enforces this strictly: The word must match one of those three exactly, case-sensitive. Words in the past
+  tense or plural form (Closes, Fixed, References, Resolves, etc.) will fail validation. A bare #123 with no keyword
+  also fails.
+
+  This is narrower than GitHub's default keyword list on purpose (see .config/issue-reference-keyword.js) to ensure
+  every reference in the repository's history reads in the imperative mood.
+
+  A single keyword can introduce multiple references on its line (e.g., Reference #123, #124).
+
+When the pull request merges, close-referenced-issues.yaml reads the PR description, recognizes these exact keywords,
+and closes each referenced issue automatically while leaving a link back to the merging pull request.
 
 ---
 
